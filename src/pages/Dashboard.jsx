@@ -10,6 +10,7 @@ import {
   FileText,
   Sparkles,
   ChevronRight,
+  History as HistoryIcon,
 } from 'lucide-react'
 import { useAuthStore } from '../stores/authStore'
 import { useExpenses } from '../hooks/useExpenses'
@@ -72,7 +73,9 @@ export default function Dashboard() {
   const { data: expenses = [] } = useExpenses()
   const { data: documents = [] } = useDocuments()
   const { data: children = [] } = useChildren()
-  const { data: upcoming = [] } = useUpcomingEvents(1)
+  // On charge 5 upcoming : 1 pour la carte hero, jusqu'à 5 pour le feed
+  // d'activité récente (sinon le feed n'a qu'un seul événement max).
+  const { data: upcoming = [] } = useUpcomingEvents(5)
   const { data: members = [] } = useFamilyMembers()
 
   // Stats
@@ -260,6 +263,14 @@ export default function Dashboard() {
             ))}
           </ul>
         )}
+
+        <Link
+          to="/history"
+          className="mt-md flex items-center justify-center gap-1.5 text-caption text-on-surface-variant hover:text-on-surface transition-colors"
+        >
+          <HistoryIcon size={14} />
+          Voir tout l'historique
+        </Link>
       </section>
     </div>
   )

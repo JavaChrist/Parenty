@@ -17,6 +17,7 @@ import Expenses from './pages/Expenses'
 import Documents from './pages/Documents'
 import Chat from './pages/Chat'
 import Profile from './pages/Profile'
+import History from './pages/History'
 
 export default function App() {
   const init = useAuthStore((s) => s.init)
@@ -63,6 +64,7 @@ export default function App() {
             <Route path="/documents" element={<Documents />} />
             <Route path="/chat" element={<Chat />} />
             <Route path="/profile" element={<Profile />} />
+            <Route path="/history" element={<History />} />
           </Route>
         </Route>
       </Route>

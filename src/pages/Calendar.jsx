@@ -64,9 +64,16 @@ export default function Calendar() {
 
   const days = useMemo(() => buildMonthGrid(cursor.year, cursor.month), [cursor])
 
+  // Vue mensuelle : on ignore les annulés pour ne pas "polluer" les cases.
+  // Liste du jour : on les inclut mais avec un style dédié (barré, badge "Annulé").
   const activeEvents = events.filter((e) => !e.cancelled_at)
-
-  const eventsOnSelected = activeEvents.filter((e) => overlapsDay(e, selectedDate))
+  const eventsOnSelected = events
+    .filter((e) => overlapsDay(e, selectedDate))
+    .sort((a, b) => {
+      // Annulés en bas
+      if (!!a.cancelled_at !== !!b.cancelled_at) return a.cancelled_at ? 1 : -1
+      return new Date(a.starts_at) - new Date(b.starts_at)
+    })
 
   const goMonth = (delta) => {
     setCursor(({ year, month }) => {
@@ -180,44 +187,74 @@ export default function Calendar() {
           </div>
         )}
 
-        {eventsOnSelected.map((e) => (
-          <button
-            key={e.id}
-            type="button"
-            onClick={() => setSelectedEvent(e)}
-            className="card p-md flex gap-md items-start w-full text-left hover:bg-surface-container-low transition-colors focus:outline-none focus:ring-2 focus:ring-primary/30"
-            aria-label={`Voir les détails de ${e.title}`}
-          >
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${KIND_BG[e.kind]}`}>
-              <Clock size={18} />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-start justify-between gap-2">
-                <h3 className="text-body-md font-semibold text-on-surface">
-                  {e.title}
-                </h3>
-                <span className="pill-neutral whitespace-nowrap">
-                  {KIND_META[e.kind]?.label}
-                </span>
+        {eventsOnSelected.map((e) => {
+          const isCancelled = !!e.cancelled_at
+          return (
+            <button
+              key={e.id}
+              type="button"
+              onClick={() => setSelectedEvent(e)}
+              className={[
+                'card p-md flex gap-md items-start w-full text-left transition-colors focus:outline-none focus:ring-2 focus:ring-primary/30',
+                isCancelled
+                  ? 'opacity-70 hover:opacity-90 hover:bg-surface-container-low/60'
+                  : 'hover:bg-surface-container-low',
+              ].join(' ')}
+              aria-label={`Voir les détails de ${e.title}${isCancelled ? ' (annulé)' : ''}`}
+            >
+              <div
+                className={[
+                  'w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0',
+                  isCancelled
+                    ? 'bg-surface-container text-on-surface-variant'
+                    : KIND_BG[e.kind],
+                ].join(' ')}
+              >
+                <Clock size={18} />
               </div>
-              <p className="text-caption text-on-surface-variant mt-0.5">
-                {new Date(e.starts_at).toLocaleTimeString('fr-FR', {
-                  hour: '2-digit', minute: '2-digit',
-                })}
-                {' → '}
-                {new Date(e.ends_at).toLocaleTimeString('fr-FR', {
-                  hour: '2-digit', minute: '2-digit',
-                })}
-              </p>
-              {e.description && (
-                <p className="text-body-md text-on-surface-variant mt-sm line-clamp-2">
-                  {e.description}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-start justify-between gap-2 flex-wrap">
+                  <h3
+                    className={[
+                      'text-body-md font-semibold text-on-surface',
+                      isCancelled && 'line-through decoration-1',
+                    ].filter(Boolean).join(' ')}
+                  >
+                    {e.title}
+                  </h3>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    {isCancelled && (
+                      <span className="pill-neutral whitespace-nowrap">Annulé</span>
+                    )}
+                    <span className="pill-neutral whitespace-nowrap">
+                      {KIND_META[e.kind]?.label}
+                    </span>
+                  </div>
+                </div>
+                <p
+                  className={[
+                    'text-caption text-on-surface-variant mt-0.5',
+                    isCancelled && 'line-through decoration-1',
+                  ].filter(Boolean).join(' ')}
+                >
+                  {new Date(e.starts_at).toLocaleTimeString('fr-FR', {
+                    hour: '2-digit', minute: '2-digit',
+                  })}
+                  {' → '}
+                  {new Date(e.ends_at).toLocaleTimeString('fr-FR', {
+                    hour: '2-digit', minute: '2-digit',
+                  })}
                 </p>
-              )}
-            </div>
-            <ChevronRightIcon size={18} className="text-on-surface-variant/60 mt-2 flex-shrink-0" />
-          </button>
-        ))}
+                {e.description && (
+                  <p className="text-body-md text-on-surface-variant mt-sm line-clamp-2">
+                    {e.description}
+                  </p>
+                )}
+              </div>
+              <ChevronRightIcon size={18} className="text-on-surface-variant/60 mt-2 flex-shrink-0" />
+            </button>
+          )
+        })}
       </section>
 
       {/* CTA */}

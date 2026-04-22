@@ -12,6 +12,7 @@ import { useAuthStore } from '../../stores/authStore'
 import { useMyProfile, getAvatarUrl } from '../../hooks/useProfile'
 import { useUnreadMessagesCount } from '../../hooks/useMessages'
 import { useExpenses } from '../../hooks/useExpenses'
+import { useFamilyRealtime } from '../../hooks/useFamilyRealtime'
 
 const tabs = [
   { to: '/', label: 'Accueil', icon: LayoutDashboard, end: true },
@@ -27,6 +28,10 @@ export default function AppLayout() {
   const { data: myProfile } = useMyProfile()
   const initial = (myProfile?.first_name?.[0] ?? user?.email?.[0] ?? 'P').toUpperCase()
   const avatarUrl = getAvatarUrl(myProfile?.avatar_path, myProfile?.updated_at)
+
+  // Abonnement global : events / expenses / documents se rafraîchissent
+  // automatiquement pour les deux parents quand l'autre modifie quelque chose.
+  useFamilyRealtime()
 
   const { data: unreadCount = 0 } = useUnreadMessagesCount()
   const { data: expenses = [] } = useExpenses()

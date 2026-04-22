@@ -350,3 +350,121 @@ Nouveau keyframe `fade-in` (150 ms) dans `index.css`, réutilisable partout
 - **Pagination** du thread si > quelques centaines de messages (pour l'instant tout est chargé d'un coup)
 - **Notifications push** (web push + permission navigateur)
 - Écran **Calendrier** et **Expenses** : audit UX complet à refaire avec les nouveaux pills colorés
+
+---
+
+# Nuit du 22 avril 2026 — Historique et événements annulés
+
+## Contexte
+
+Suite à l'ajout du modal de détail + édition/annulation des événements, deux
+frictions étaient apparues :
+
+1. Un événement annulé **disparaissait complètement** de l'agenda — frustrant
+   pour vérifier si un rendez-vous a bien été annulé par l'autre parent.
+2. L'historique (`event_history`, `expense_history`) était écrit par les
+   triggers mais jamais **exposé côté UI**.
+
+Parti pris éditorial important : dans un contexte de **coparentalité séparée**,
+l'historique ne doit jamais avoir l'air d'un tableau de bord accusatoire.
+L'UX retenue est **strictement factuelle** : pas de rouge alarmant, pas de
+mise en avant, pas de badges "attention". Juste une chronologie sobre,
+cohérente avec le reste du design system.
+
+## A. Événements annulés restent visibles
+
+- Les événements annulés **ne polluent plus** la vue mensuelle (heatmap ignorée)
+- Ils apparaissent **dans la liste du jour sélectionné** :
+  - Triés en fin de liste (actifs d'abord)
+  - Titre et horaires **barrés** (`line-through decoration-1`)
+  - Opacité 70 %
+  - Pastille neutre **« Annulé »** (pas de rouge, volontairement)
+- Dans `EventDetailModal` pour un événement annulé :
+  - Plus de boutons Modifier / Annuler (lecture seule)
+  - Bloc dédié **« Annulation »** : date + heure + auteur + raison éventuelle
+  - Bouton simple **« Fermer »** à la place
+
+## B. Historique contextuel (onglet par événement)
+
+Nouveau composant `src/components/events/EventHistoryTimeline.jsx` + hook
+`useEventHistory(eventId)` dans `useEvents.js`.
+
+- Bouton texte discret **« Voir l'historique »** en bas du modal de détail
+  (visible pour les actifs comme pour les annulés)
+- Timeline verticale avec :
+  - Icône + couleur selon l'action (`created`, `updated`, `cancelled`)
+  - Nom de l'auteur (récupéré via `useProfiles([changed_by])`)
+  - Date + heure exactes
+  - Pour les `updated` : **diff par champ** en comparant `snapshot[N]` avec
+    `snapshot[N+1]` — on se limite aux champs parlants (titre, description,
+    type, dates, enfant concerné, raison) pour ne pas noyer l'utilisateur
+  - Raison d'annulation extraite du snapshot
+
+## C. Page globale `/history`
+
+Route protégée (famille requise) : `src/pages/History.jsx`.
+
+### Source de données
+
+Nouveau hook `src/hooks/useActivityFeed.js` qui agrège **3 sources** en
+parallèle (RLS filtre naturellement par famille) :
+
+- `event_history` (création, modif, annulation d'événement)
+- `expense_history` (création, changement de statut d'une dépense)
+- `documents` (upload — les soft-deletes sont invisibles car la RLS SELECT
+  exclut `deleted_at is not null`)
+
+Chaque entrée est normalisée vers un format commun
+`{ id, source, action, at, actorId, ref, snapshot }` puis triée desc.
+Limite de 100 entrées par source — on ajoutera la pagination si nécessaire.
+
+### UI
+
+- Header avec **lien "Retour au tableau de bord"** (flèche ArrowLeft)
+- Barre de filtres pilulaires : Tout / Événements / Dépenses / Documents
+- Regroupement par jour avec en-têtes **« Aujourd'hui »**, **« Hier »**, ou
+  date formatée (avec l'année si ≠ année en cours)
+- Chaque entrée clique vers la page d'origine (`/calendar`, `/expenses`,
+  `/documents`)
+- Raison d'annulation affichée en italique entre guillemets pour les
+  `cancelled`
+
+### Accès depuis le Dashboard
+
+**Lien volontairement discret** en bas de la section « Activité récente » :
+
+```
+<HistoryIcon 14px />  Voir tout l'historique
+```
+
+Pas de carte, pas de bouton, pas de pastille. Juste un lien texte en
+`caption` — volontairement pour rester dans un ton factuel et neutre.
+
+## Fichiers créés / modifiés (nuit)
+
+### Nouveaux fichiers
+
+- `src/components/events/EventHistoryTimeline.jsx` — timeline verticale d'un événement
+- `src/hooks/useActivityFeed.js` — agrégation multi-sources du feed global
+- `src/pages/History.jsx` — page `/history` avec filtres
+
+### Modifiés
+
+- `src/hooks/useEvents.js` — nouveau hook `useEventHistory()`, colonnes
+  `cancelled_by` et `cancel_reason` ajoutées au SELECT mensuel
+- `src/components/events/EventDetailModal.jsx` — mode `history`, bloc
+  « Annulation » dédié, lecture seule si annulé, nom de l'annulateur résolu
+  via `useProfiles`
+- `src/pages/Calendar.jsx` — les annulés restent dans la liste du jour mais
+  avec style dédié (barré, opacité, pill « Annulé »)
+- `src/pages/Dashboard.jsx` — lien discret vers `/history`
+- `src/App.jsx` — route protégée `/history`
+
+## Points encore ouverts après cette nuit
+
+- Filtrage par **auteur** sur `/history` (utile quand la famille grandit)
+- **Export CSV / PDF** de l'historique (contexte juridique / médiation)
+- Pagination côté `useActivityFeed` si le volume grossit (aujourd'hui 100/source)
+- Étendre le même pattern aux **dépenses** : modal de détail + onglet
+  historique + mode lecture seule si validée/refusée (même logique que les
+  événements annulés)

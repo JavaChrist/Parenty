@@ -42,7 +42,7 @@ export function useEventsForMonth(year, month) {
       const to = new Date(Date.UTC(year, month + 1, 1)).toISOString()
       const { data, error } = await supabase
         .from('events')
-        .select('id, title, kind, starts_at, ends_at, description, child_id, cancelled_at')
+        .select('id, title, kind, starts_at, ends_at, description, child_id, cancelled_at, cancelled_by, cancel_reason')
         .eq('family_id', familyId)
         .lt('starts_at', to)
         .gte('ends_at', from)
@@ -124,6 +124,26 @@ export function useUpdateEvent() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['events'] })
+    },
+  })
+}
+
+/**
+ * Historique d'un événement : toutes les entrées de event_history.
+ * Ordre chronologique (plus récent en premier).
+ */
+export function useEventHistory(eventId) {
+  return useQuery({
+    queryKey: ['event-history', eventId],
+    enabled: !!eventId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('event_history')
+        .select('id, event_id, changed_by, action, snapshot, changed_at')
+        .eq('event_id', eventId)
+        .order('changed_at', { ascending: false })
+      if (error) throw error
+      return data ?? []
     },
   })
 }
