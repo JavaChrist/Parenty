@@ -1,0 +1,48 @@
+{
+  "name": "parenty",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Organisation parentale partagée, simple et factuelle",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
+    "sb:login": "supabase login",
+    "sb:link": "supabase link --project-ref xwmtkbndpidwlzqvbgzq",
+    "sb:db:push": "supabase db push",
+    "sb:deploy": "supabase functions deploy invite-parent && supabase functions deploy accept-invite",
+    "sb:deploy:invite": "supabase functions deploy invite-parent",
+    "sb:deploy:accept": "supabase functions deploy accept-invite",
+    "sb:secrets": "supabase secrets list",
+    "sb:logs:invite": "supabase functions logs invite-parent --tail",
+    "sb:logs:accept": "supabase functions logs accept-invite --tail",
+    "sb:setup": "npm run sb:login && npm run sb:link && npm run sb:deploy && echo APP_URL secret: run \"npx supabase secrets set APP_URL=http://localhost:5173\""
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
+    "@tanstack/react-query": "^5.59.0",
+    "date-fns": "^4.1.0",
+    "lucide-react": "^0.454.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.26.0",
+    "zustand": "^4.5.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "autoprefixer": "^10.4.20",
+    "eslint": "^8.57.0",
+    "eslint-plugin-react": "^7.35.0",
+    "eslint-plugin-react-hooks": "^4.6.2",
+    "eslint-plugin-react-refresh": "^0.4.9",
+    "postcss": "^8.4.41",
+    "supabase": "^2.93.0",
+    "tailwindcss": "^3.4.10",
+    "vite": "^5.4.1",
+    "vite-plugin-pwa": "^0.20.1"
+  }
+}

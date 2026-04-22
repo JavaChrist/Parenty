@@ -1,0 +1,121 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    @apply bg-background text-on-background antialiased;
+    font-family: 'Manrope', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  }
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply font-display tracking-tight text-on-surface;
+  }
+}
+
+@layer components {
+  /* --- Boutons --- */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-full px-5 py-3 text-label-sm font-semibold
+           transition-all duration-200 active:scale-[0.98]
+           disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100;
+  }
+  .btn-primary {
+    @apply btn bg-primary text-on-primary shadow-soft hover:bg-primary-container;
+  }
+  .btn-secondary {
+    @apply btn border border-outline-variant bg-surface-container-lowest text-on-surface hover:bg-surface-container-low;
+  }
+  .btn-ghost {
+    @apply btn text-primary hover:bg-surface-container-low;
+  }
+  .btn-accent {
+    @apply btn bg-tertiary-container text-on-tertiary hover:bg-tertiary;
+  }
+  .btn-danger {
+    @apply btn bg-error-container text-on-error-container hover:bg-error hover:text-on-error;
+  }
+
+  /* --- Inputs --- */
+  .input {
+    @apply w-full rounded-md border border-outline-variant bg-surface-container-lowest
+           px-4 py-3 text-body-md text-on-surface
+           placeholder:text-on-surface-variant/60
+           focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20
+           transition-colors;
+  }
+  .label {
+    @apply block text-label-sm text-on-surface-variant mb-2;
+  }
+
+  /* --- Cartes --- */
+  .card {
+    @apply bg-surface-container-lowest rounded-lg border border-outline-variant/60 shadow-soft;
+  }
+  .card-elevated {
+    @apply bg-surface-container-lowest rounded-xl border border-outline-variant/60 shadow-card;
+  }
+  .card-flat {
+    @apply bg-surface-container-low rounded-lg;
+  }
+
+  /* --- Tags / Pills --- */
+  .pill {
+    @apply inline-flex items-center gap-1 rounded-full px-3 py-1 text-caption font-semibold;
+  }
+  .pill-primary {
+    @apply pill bg-primary-container/20 text-primary;
+  }
+  .pill-accent {
+    @apply pill bg-tertiary-fixed text-on-tertiary-fixed-variant;
+  }
+  .pill-neutral {
+    @apply pill bg-surface-container text-on-surface-variant;
+  }
+  .pill-success {
+    @apply pill bg-primary-container/20 text-primary;
+  }
+  .pill-warning {
+    @apply pill bg-tertiary-fixed text-on-tertiary-fixed-variant;
+  }
+  .pill-danger {
+    @apply pill bg-error-container text-on-error-container;
+  }
+
+  /* --- Headings utilitaires --- */
+  .h-display {
+    @apply font-display text-display text-on-surface;
+  }
+  .h-title {
+    @apply font-display text-h2 text-on-surface;
+  }
+  .h-section {
+    @apply font-display text-h3 text-on-surface;
+  }
+}
+
+/* Scrollbars discrètes pour coller au style soft */
+@layer utilities {
+  .scrollbar-soft::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .scrollbar-soft::-webkit-scrollbar-thumb {
+    @apply bg-outline-variant rounded-full;
+  }
+
+  /* Animation d'apparition pour les modales */
+  @keyframes slide-up {
+    from { transform: translateY(16px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+  .animate-slide-up {
+    animation: slide-up 220ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+}
