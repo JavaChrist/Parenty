@@ -6,7 +6,11 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
+      // 'prompt' au lieu de 'autoUpdate' : on contrôle finement le moment du
+      // reload via un banner (src/components/layout/UpdatePrompt.jsx).
+      // `autoUpdate` installait silencieusement le nouveau SW mais ne
+      // rechargeait pas la page — les utilisateurs gardaient l'ancien bundle.
+      registerType: 'prompt',
       includeAssets: [
         'icons/favicon.ico',
         'icons/apple-touch-icon.png',
@@ -68,6 +72,9 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+        // Purge les anciens caches générés par les builds précédents —
+        // sinon on accumule MBo sur l'appareil de l'utilisateur.
+        cleanupOutdatedCaches: true,
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,

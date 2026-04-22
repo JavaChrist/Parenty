@@ -4,6 +4,7 @@ import { useAuthStore } from './stores/authStore'
 import ProtectedRoute from './components/layout/ProtectedRoute'
 import RequireFamily from './components/layout/RequireFamily'
 import AppLayout from './components/layout/AppLayout'
+import UpdatePrompt from './components/layout/UpdatePrompt'
 
 // Pages
 import SignIn from './pages/SignIn'
@@ -43,7 +44,9 @@ export default function App() {
   }
 
   return (
-    <Routes>
+    <>
+      <UpdatePrompt />
+      <Routes>
       {/* Routes publiques */}
       <Route path="/signin" element={<SignIn />} />
       <Route path="/signup" element={<SignUp />} />
@@ -70,6 +73,7 @@ export default function App() {
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+      </Routes>
+    </>
   )
 }
