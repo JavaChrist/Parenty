@@ -10,8 +10,8 @@ PWA destinée aux parents séparés ou divorcés. L'application centralise les i
 - **Routing** : React Router v6
 - **État** : Zustand (auth) + TanStack Query (données serveur, realtime)
 - **Backend** : Supabase (Auth, Postgres + RLS, Storage, Realtime, Edge Functions)
-- **Paiement** : Mollie (abonnement mensuel sans engagement)
-- **Hébergement** : IONOS (UE)
+- **Paiement** : Mollie (abonnement mensuel sans engagement) — _à venir_
+- **Hébergement** : Vercel (front) + Supabase (données, région Francfort UE)
 
 ## Démarrage
 
@@ -38,11 +38,15 @@ npm run dev
    supabase/migrations/20260422000004_messages.sql
    supabase/migrations/20260422000005_profiles_and_avatars.sql
    supabase/migrations/20260422000006_message_attachments.sql
+   supabase/migrations/20260422000007_user_deletion_cascade.sql
+   supabase/migrations/20260423000001_realtime_shared_tables.sql
    ```
-3. Déploie l'edge function :
+3. Déploie les edge functions :
    ```bash
    supabase functions deploy invite-parent
+   supabase functions deploy accept-invite
    ```
+   (ou `npm run sb:deploy` pour les deux en une seule commande)
 4. Les buckets Storage sont créés automatiquement par les migrations :
 
    | Bucket            | Visibilité | Usage                                  |
@@ -59,23 +63,28 @@ parenty/
 ├── src/
 │   ├── components/
 │   │   ├── documents/      # UploadDocumentForm
-│   │   ├── events/         # AddEventForm
+│   │   ├── events/         # AddEventForm, EventDetailModal,
+│   │   │                   # EventHistoryTimeline
 │   │   ├── expenses/       # AddExpenseForm, RejectExpenseForm
-│   │   ├── layout/         # AppLayout, ProtectedRoute, RequireFamily
+│   │   ├── layout/         # AppLayout, ProtectedRoute, RequireFamily,
+│   │   │                   # LegalLayout, UpdatePrompt
 │   │   ├── profile/        # PersonalInfoForm, ChangePasswordForm,
 │   │   │                   # AddChildForm, InviteCoParentForm
-│   │   └── ui/             # Modal et composants réutilisables
+│   │   └── ui/             # Modal, ImageLightbox…
 │   ├── hooks/              # useFamily, useProfile, useMessages,
-│   │                       # useExpenses, useEvents, useDocuments…
-│   ├── lib/                # supabase.js
-│   ├── pages/              # Un fichier par écran
+│   │                       # useExpenses, useEvents, useDocuments,
+│   │                       # useActivityFeed, useFamilyRealtime…
+│   ├── lib/                # supabase.js, image.js, pendingInvite.js
+│   ├── pages/
+│   │   ├── legal/          # MentionsLegales, Privacy, CGU, CGV
+│   │   └── …               # Un fichier par écran principal
 │   ├── stores/             # Zustand (authStore)
 │   ├── styles/             # CSS global Tailwind
 │   ├── App.jsx
 │   └── main.jsx
 ├── supabase/
 │   ├── migrations/         # Schéma SQL + RLS + triggers + buckets
-│   └── functions/          # Edge Functions (invite-parent)
+│   └── functions/          # Edge Functions (invite-parent, accept-invite)
 └── docs/                   # Documentation projet
 ```
 
@@ -113,11 +122,22 @@ parenty/
 - Carte « Prochain événement » hero
 - Statistiques 2×2 (dépenses à valider, documents, messages, enfants)
 - **Flux d'activité unifié** : événements + dépenses + documents triés par date, avec statuts traduits
+- Lien discret **« Voir tout l'historique »** vers la page `/history` globale
 
 ### Agenda
 - 5 types d'événements : garde, vacances, école, santé, autre
 - **Aucun événement supprimable** : seule l'annulation (avec motif) est possible
+- **Modification** et **annulation** des événements via un modal de détail dédié
+- Les événements annulés restent visibles dans la liste du jour (barrés, pill neutre « Annulé », lecture seule) — **pas de rouge**, ton factuel
+- **Historique contextuel** dans le modal : chronologie des créations / modifications / annulations avec auteur et diff par champ
 - Toute modification est enregistrée dans `event_history` (trigger PL/pgSQL)
+
+### Historique global (`/history`)
+- Agrégation des 3 sources : `event_history`, `expense_history`, `documents`
+- Filtres pilulaires : Tout / Événements / Dépenses / Documents
+- Regroupement par jour (« Aujourd'hui », « Hier », date formatée)
+- Chaque entrée lie vers la page d'origine ; raison d'annulation visible pour les `cancelled`
+- Parti pris éditorial : **journal factuel neutre**, pas de tableau accusatoire
 
 ### Dépenses
 - Upload de justificatif (image ou PDF) dans le bucket `documents`
@@ -141,6 +161,25 @@ parenty/
 - Cloche dans le header avec compteur agrégé (dépenses à valider + messages non lus)
 - Badge coloré en rouge avec nombre (9+ au-delà)
 - Lien intelligent vers la page concernée
+
+### Realtime inter-parents
+- Hook `useFamilyRealtime` monté dans `AppLayout` : souscrit aux `postgres_changes` sur `events`, `expenses`, `documents` pour le `family_id` courant
+- Invalide les caches TanStack Query (`events`, `expenses`, `documents`, `activity-feed`) à chaque insert/update/delete
+- Migration `20260423000001_realtime_shared_tables.sql` : ajoute les trois tables à la publication `supabase_realtime`
+
+### PWA & mises à jour
+- `vite-plugin-pwa` en mode `registerType: 'prompt'` + `cleanupOutdatedCaches: true`
+- Composant `UpdatePrompt` : bandeau « Une nouvelle version est disponible » dès qu'un nouveau service worker est prêt, avec bouton « Mettre à jour »
+- Évite les caches fantômes entre parents après déploiement
+
+### Pages légales
+Routes publiques accessibles sans authentification :
+- `/mentions-legales` — éditeur, hébergeur, contact, responsabilités
+- `/privacy` — RGPD, données collectées, durées, droits, cookies (pas de tracker externe)
+- `/cgu` — règles d'usage, parti pris anti-surveillance, modération
+- `/cgv` — publiées en prévision du futur abonnement Premium Mollie
+
+Toutes partagent `LegalLayout` (retour, titre, date de mise à jour).
 
 ## Principes de conception (non négociables)
 
@@ -184,8 +223,11 @@ npm run lint     # ESLint
 - [x] Chat realtime avec pièces jointes
 - [x] Profils enrichis (prénom, nom, téléphone, avatar)
 - [x] Notifications badgées (cloche + messagerie)
+- [x] Événements annulés visibles + historique contextuel + page `/history`
+- [x] Realtime inter-parents (events / expenses / documents) + prompt de mise à jour PWA
+- [x] Pages légales (mentions, CGU, CGV, RGPD)
 - [ ] Intégration Mollie (abonnement + paywall)
-- [ ] Pages légales (mentions, CGU, CGV, RGPD)
+- [ ] Emails transactionnels Supabase (confirmation, mot de passe oublié, abonnement)
 
 ### V2
 - Export PDF certifié

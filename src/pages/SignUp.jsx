@@ -122,11 +122,24 @@ export default function SignUp() {
             />
             <span>
               J'accepte les{' '}
-              <a href="/cgu" className="text-primary font-semibold underline">CGU</a>
+              <Link
+                to="/cgu"
+                target="_blank"
+                rel="noopener"
+                className="text-primary font-semibold underline"
+              >
+                CGU
+              </Link>
               {' '}et la{' '}
-              <a href="/privacy" className="text-primary font-semibold underline">
+              <Link
+                to="/privacy"
+                target="_blank"
+                rel="noopener"
+                className="text-primary font-semibold underline"
+              >
                 politique de confidentialité
-              </a>.
+              </Link>
+              .
             </span>
           </label>
 

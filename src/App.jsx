@@ -19,6 +19,10 @@ import Documents from './pages/Documents'
 import Chat from './pages/Chat'
 import Profile from './pages/Profile'
 import History from './pages/History'
+import MentionsLegales from './pages/legal/MentionsLegales'
+import Privacy from './pages/legal/Privacy'
+import CGU from './pages/legal/CGU'
+import CGV from './pages/legal/CGV'
 
 export default function App() {
   const init = useAuthStore((s) => s.init)
@@ -51,6 +55,12 @@ export default function App() {
       <Route path="/signin" element={<SignIn />} />
       <Route path="/signup" element={<SignUp />} />
       <Route path="/invite" element={<AcceptInvite />} />
+
+      {/* Pages légales — accessibles sans authentification (LCEN/RGPD) */}
+      <Route path="/mentions-legales" element={<MentionsLegales />} />
+      <Route path="/privacy" element={<Privacy />} />
+      <Route path="/cgu" element={<CGU />} />
+      <Route path="/cgv" element={<CGV />} />
 
       {/* Routes protégées */}
       <Route element={<ProtectedRoute />}>

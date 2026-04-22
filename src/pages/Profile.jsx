@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams, Link } from 'react-router-dom'
 import {
   User,
   Users,
@@ -259,10 +259,10 @@ export default function Profile() {
           Légal
         </h2>
         <div className="card divide-y divide-outline-variant/40">
-          <SettingRow icon={FileText} label="Mentions légales" href="/mentions-legales" />
-          <SettingRow icon={Shield} label="Politique de confidentialité" href="/privacy" />
-          <SettingRow icon={FileText} label="CGU" href="/cgu" />
-          <SettingRow icon={FileText} label="CGV" href="/cgv" />
+          <SettingRow icon={FileText} label="Mentions légales" to="/mentions-legales" />
+          <SettingRow icon={Shield} label="Politique de confidentialité" to="/privacy" />
+          <SettingRow icon={FileText} label="CGU" to="/cgu" />
+          <SettingRow icon={FileText} label="CGV" to="/cgv" />
         </div>
       </section>
 
@@ -308,15 +308,12 @@ export default function Profile() {
   )
 }
 
-function SettingRow({ icon: Icon, label, hint, href, onClick }) {
-  const Tag = href ? 'a' : 'button'
-  return (
-    <Tag
-      href={href}
-      onClick={onClick}
-      type={Tag === 'button' ? 'button' : undefined}
-      className="w-full flex items-center gap-md p-md hover:bg-surface-container-low transition-colors text-left"
-    >
+function SettingRow({ icon: Icon, label, hint, to, onClick }) {
+  const commonClasses =
+    'w-full flex items-center gap-md p-md hover:bg-surface-container-low transition-colors text-left'
+
+  const inner = (
+    <>
       <div className="h-10 w-10 rounded-full bg-surface-container flex items-center justify-center text-primary flex-shrink-0">
         <Icon size={20} strokeWidth={2} />
       </div>
@@ -325,6 +322,20 @@ function SettingRow({ icon: Icon, label, hint, href, onClick }) {
         {hint && <p className="text-caption text-on-surface-variant">{hint}</p>}
       </div>
       <ChevronRight size={18} className="text-on-surface-variant flex-shrink-0" />
-    </Tag>
+    </>
+  )
+
+  if (to) {
+    return (
+      <Link to={to} className={commonClasses}>
+        {inner}
+      </Link>
+    )
+  }
+
+  return (
+    <button type="button" onClick={onClick} className={commonClasses}>
+      {inner}
+    </button>
   )
 }
