@@ -14,8 +14,12 @@ améliorations UX sur le Dashboard et l'authentification.
 
 Deux nouvelles migrations SQL à appliquer sur l'environnement distant Supabase :
 
-1. `supabase/migrations/20260422_0005_profiles_and_avatars.sql`
-2. `supabase/migrations/20260422_0006_message_attachments.sql`
+1. `supabase/migrations/20260422000005_profiles_and_avatars.sql`
+2. `supabase/migrations/20260422000006_message_attachments.sql`
+
+> Note (soir du 22/04) : les 6 migrations ont été **renommées au format
+> 14 chiffres** (`YYYYMMDDHHMMSS_…`) attendu par la CLI Supabase. Le renommage
+> a été fait avec `git mv` donc l'historique est préservé.
 
 Les buckets Storage **`avatars`** (public) et **`chat-attachments`** (privé) sont créés
 automatiquement par ces migrations. Aucune action manuelle dans le dashboard.
@@ -192,8 +196,8 @@ Remplace l'ancien affichage qui ne montrait que les dépenses :
 
 | Fichier | Rôle |
 |---------|------|
-| `supabase/migrations/20260422_0005_profiles_and_avatars.sql` | Table `profiles`, bucket `avatars`, RLS, triggers |
-| `supabase/migrations/20260422_0006_message_attachments.sql` | Colonnes attachment sur `messages`, bucket `chat-attachments` |
+| `supabase/migrations/20260422000005_profiles_and_avatars.sql` | Table `profiles`, bucket `avatars`, RLS, triggers |
+| `supabase/migrations/20260422000006_message_attachments.sql` | Colonnes attachment sur `messages`, bucket `chat-attachments` |
 | `src/hooks/useProfile.js` | `useMyProfile`, `useProfiles`, `useUpdateProfile`, `useUploadAvatar`, `useRemoveAvatar`, `getAvatarUrl` |
 | `src/components/profile/PersonalInfoForm.jsx` | Modal infos personnelles + avatar |
 | `src/components/profile/ChangePasswordForm.jsx` | Modal changement de mot de passe |
@@ -214,8 +218,135 @@ Remplace l'ancien affichage qui ne montrait que les dépenses :
 
 ## Points à traiter dans une prochaine session
 
-- Audit de **contraste** des pills (`pill-warning` / `pill-success` actuellement utilisent les mêmes teintes que `pill-primary` / `pill-accent`)
-- **Drag-and-drop** dans le chat pour les pièces jointes
-- **Compression côté client** des images envoyées dans le chat (réutiliser `resizeImage` du hook avatar avec un `maxSize: 1600`)
-- **Lightbox** pour l'affichage plein écran des images dans le chat (actuellement ouverture dans un nouvel onglet)
-- **Renommage des migrations** au format 14 chiffres attendu par le CLI Supabase (pour que `supabase db push` fonctionne sans friction)
+- _(tous les points identifiés en milieu de journée ont été traités le soir — voir section suivante)_
+
+---
+
+# Suite de session — soirée du 22 avril 2026
+
+Clôture des 5 points « à traiter » listés plus haut.
+
+## 1. Migrations renommées au format CLI Supabase
+
+Renommage via `git mv` pour préserver l'historique. Format 14 chiffres attendu par
+`supabase db push` :
+
+| Avant | Après |
+|-------|-------|
+| `20260421_0001_initial_schema.sql` | `20260421000001_initial_schema.sql` |
+| `20260421_0002_rls_policies.sql` | `20260421000002_rls_policies.sql` |
+| `20260422_0003_storage_documents.sql` | `20260422000003_storage_documents.sql` |
+| `20260422_0004_messages.sql` | `20260422000004_messages.sql` |
+| `20260422_0005_profiles_and_avatars.sql` | `20260422000005_profiles_and_avatars.sql` |
+| `20260422_0006_message_attachments.sql` | `20260422000006_message_attachments.sql` |
+
+`README.md` et `SETUP.md` mis à jour.
+
+## 2. Contraste des pills — nouveaux tokens sémantiques
+
+Avant, `pill-success` ≡ `pill-primary` et `pill-warning` ≡ `pill-accent` (mêmes
+couleurs, aucune distinction visuelle pour l'utilisateur).
+
+### Nouveaux tokens dans `tailwind.config.js`
+
+- `success` (vert forêt) : `#15803d` / container `#dcfce7` / texte container `#14532d`
+- `warning` (ambre) : `#b45309` / container `#fef3c7` / texte container `#78350f`
+
+Distincts du teal de marque (primary) et de l'orange tertiary.
+
+### Nouvelles classes dans `src/styles/index.css`
+
+- `pill-success` → `bg-success-container text-on-success-container`
+- `pill-warning` → `bg-warning-container text-on-warning-container`
+
+Impact automatique sur le Dashboard (feed unifié) et la page Expenses qui utilisaient déjà
+ces classes avec leurs mauvaises teintes.
+
+## 3. Compression client des images du chat
+
+### Nouveau module `src/lib/image.js`
+
+`resizeImage(file, { maxSize, quality, square })` :
+
+- Générique (crop carré optionnel pour avatars, non-crop par défaut pour chat)
+- Garde-fou : si le JPEG produit est **plus gros** que l'original (cas des PNG
+  très plats / illustrations), on renvoie le fichier original
+- GIFs animés et images déjà plus petites que `maxSize` (JPEG/WebP) renvoyés tels quels
+- Factorise la logique qui était inline dans `useProfile.js`
+
+### Usage
+
+- Avatar : `resizeImage(file, { maxSize: 512, quality: 0.9, square: true })`
+- Chat : `resizeImage(file, { maxSize: 1600, quality: 0.85 })`
+  - Appliqué automatiquement dans `useSendMessage` juste avant l'upload storage
+  - `attachment_name` reflète le nom final (extension `.jpg` si re-encodé)
+  - `attachment_size` utilise la taille post-compression (affichage fidèle)
+
+Une photo de smartphone de 4-8 Mo tombe typiquement à 200-500 Ko sans perte visible
+à l'écran, avec un gain de rapidité d'upload et de lecture notable.
+
+## 4. Drag-and-drop dans le chat
+
+### UX
+
+- Glisser un fichier depuis le bureau fait apparaître un overlay animé sur toute la
+  page Chat : bordure pointillée `primary`, fond `primary-container`, pictogramme
+  `Upload` et texte « Déposer pour joindre »
+- Fichiers acceptés : images, PDF, Word, Excel, texte, CSV (liste centralisée)
+- Limite : 20 Mo (message d'erreur si dépassement)
+- Même chemin de code que le clic sur le trombone — tout passe par `acceptFile()`
+
+### Détail technique
+
+- Compteur de profondeur (`dragDepthRef`) pour gérer les événements qui bubblent
+  entre enfants sans faire flickerer l'overlay
+- Filtre `e.dataTransfer.types.includes('Files')` pour ne pas intercepter le drag
+  de texte / sélections HTML
+
+## 5. Lightbox plein écran pour les images du chat
+
+Avant : un clic sur une image ouvrait un nouvel onglet vers l'URL signée Supabase.
+Maintenant : ouverture in-app dans une **lightbox native** `src/components/ui/ImageLightbox.jsx`.
+
+### Features
+
+- Rendu via `createPortal` pour échapper au conteneur `overflow` du chat
+- Clic sur le fond **ou** touche <kbd>Échap</kbd> pour fermer
+- Bouton de téléchargement en haut à droite (utilise le nom original du fichier)
+- Nom du fichier affiché en bas dans une pill sombre
+- Bloque le scroll de la page en arrière-plan tant qu'elle est ouverte
+- `cursor-zoom-in` sur les miniatures pour signaler l'affordance
+- Ring `focus-visible` violet-teal sur le bouton miniature (accessible au clavier)
+
+### Animation
+
+Nouveau keyframe `fade-in` (150 ms) dans `index.css`, réutilisable partout
+(également utilisé par l'overlay drag-and-drop).
+
+---
+
+## Nouveaux fichiers (soir)
+
+| Fichier | Rôle |
+|---------|------|
+| `src/lib/image.js` | `resizeImage` — compression/recadrage réutilisable |
+| `src/components/ui/ImageLightbox.jsx` | Overlay plein écran pour les images |
+
+## Fichiers modifiés (soir)
+
+- `tailwind.config.js` — tokens `success` / `warning` (+ variantes on-)
+- `src/styles/index.css` — `pill-success` / `pill-warning` vraiment distincts, keyframe `fade-in`
+- `src/hooks/useProfile.js` — import de `resizeImage` (déduplication)
+- `src/hooks/useMessages.js` — compression transparente des images avant upload chat
+- `src/pages/Chat.jsx` — drag-and-drop, lightbox, validation MIME côté drop, compteur de drag depth
+- `README.md` / `SETUP.md` — nouveaux noms de migrations
+- `supabase/migrations/*` — 6 fichiers renommés via `git mv`
+
+## Points encore ouverts / pistes futures
+
+- Support du **multi-upload** dans le chat (actuellement un fichier à la fois)
+- **Navigation prev/next** dans la lightbox (entre les images du thread)
+- **Réactions emoji** sur les messages (le bouton `Smile` est déjà en place mais désactivé)
+- **Pagination** du thread si > quelques centaines de messages (pour l'instant tout est chargé d'un coup)
+- **Notifications push** (web push + permission navigateur)
+- Écran **Calendrier** et **Expenses** : audit UX complet à refaire avec les nouveaux pills colorés

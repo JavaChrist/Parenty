@@ -90,6 +90,44 @@ export function useAddEvent() {
   })
 }
 
+export function useUpdateEvent() {
+  const qc = useQueryClient()
+  const user = useAuthStore((s) => s.user)
+
+  return useMutation({
+    mutationFn: async ({ eventId, patch }) => {
+      if (!user) throw new Error('Non authentifié')
+      if (!eventId) throw new Error('Événement manquant')
+      if (!patch?.title?.trim()) throw new Error('Titre requis')
+      if (!patch.starts_at || !patch.ends_at) throw new Error('Dates requises')
+      if (new Date(patch.ends_at) < new Date(patch.starts_at)) {
+        throw new Error('La fin doit être après le début.')
+      }
+
+      const payload = {
+        title: patch.title.trim(),
+        description: patch.description?.trim() || null,
+        kind: patch.kind || 'other',
+        starts_at: new Date(patch.starts_at).toISOString(),
+        ends_at: new Date(patch.ends_at).toISOString(),
+        child_id: patch.child_id || null,
+      }
+
+      const { data, error } = await supabase
+        .from('events')
+        .update(payload)
+        .eq('id', eventId)
+        .select()
+        .single()
+      if (error) throw error
+      return data
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['events'] })
+    },
+  })
+}
+
 export function useCancelEvent() {
   const qc = useQueryClient()
   const user = useAuthStore((s) => s.user)

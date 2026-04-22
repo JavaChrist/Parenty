@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
+import { resizeImage } from '../lib/image'
 import { useAuthStore } from '../stores/authStore'
 import { useFamilyId } from './useFamily'
 
@@ -160,7 +161,21 @@ export function useSendMessage() {
         if (file.size > CHAT_MAX_SIZE) {
           throw new Error('Fichier trop volumineux (20 Mo max).')
         }
-        const ext = file.name.includes('.') ? file.name.split('.').pop() : 'bin'
+
+        // Compression automatique des images (hors GIF animé).
+        // Divise typiquement par 5 à 20× la taille d'une photo de smartphone
+        // tout en gardant une qualité suffisante pour l'écran.
+        let toUpload = file
+        let displayName = file.name
+        if (file.type?.startsWith('image/')) {
+          toUpload = await resizeImage(file, { maxSize: 1600, quality: 0.85 })
+          if (toUpload !== file && toUpload.type === 'image/jpeg') {
+            const base = (file.name || 'photo').replace(/\.[^.]+$/, '')
+            displayName = `${base}.jpg`
+          }
+        }
+
+        const ext = displayName.includes('.') ? displayName.split('.').pop() : 'bin'
         const uuid =
           globalThis.crypto?.randomUUID?.() ||
           `${Date.now()}-${Math.random().toString(36).slice(2)}`
@@ -168,17 +183,17 @@ export function useSendMessage() {
 
         const { error: uploadErr } = await supabase.storage
           .from('chat-attachments')
-          .upload(path, file, {
-            contentType: file.type || 'application/octet-stream',
+          .upload(path, toUpload, {
+            contentType: toUpload.type || 'application/octet-stream',
             upsert: false,
           })
         if (uploadErr) throw uploadErr
 
         attachment = {
           attachment_path: path,
-          attachment_mime: file.type || null,
-          attachment_name: file.name,
-          attachment_size: file.size,
+          attachment_mime: toUpload.type || null,
+          attachment_name: displayName,
+          attachment_size: toUpload.size,
         }
       }
 

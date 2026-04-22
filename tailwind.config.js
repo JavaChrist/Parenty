@@ -66,6 +66,21 @@ export default {
         },
         'on-error': '#ffffff',
         'on-error-container': '#93000a',
+        // Couleurs sémantiques de feedback (distinctes de primary/tertiary).
+        // success = vert forêt (ne doit pas se confondre avec le teal de marque).
+        // warning = ambre (distinct de l'orange tertiary).
+        success: {
+          DEFAULT: '#15803d',
+          container: '#dcfce7',
+        },
+        'on-success': '#ffffff',
+        'on-success-container': '#14532d',
+        warning: {
+          DEFAULT: '#b45309',
+          container: '#fef3c7',
+        },
+        'on-warning': '#ffffff',
+        'on-warning-container': '#78350f',
         background: '#f8f9ff',
         'on-background': '#0d1c2e',
       },

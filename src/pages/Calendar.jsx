@@ -1,8 +1,9 @@
 import { useState, useMemo } from 'react'
-import { Plus, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock } from 'lucide-react'
+import { Plus, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock, ChevronRight as ChevronRightIcon } from 'lucide-react'
 import { useEventsForMonth, EVENT_KINDS } from '../hooks/useEvents'
 import Modal from '../components/ui/Modal'
 import AddEventForm from '../components/events/AddEventForm'
+import EventDetailModal from '../components/events/EventDetailModal'
 
 const MONTHS = [
   'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
@@ -57,6 +58,7 @@ export default function Calendar() {
   const [cursor, setCursor] = useState({ year: today.getFullYear(), month: today.getMonth() })
   const [selectedDate, setSelectedDate] = useState(today)
   const [addOpen, setAddOpen] = useState(false)
+  const [selectedEvent, setSelectedEvent] = useState(null)
 
   const { data: events = [], isLoading } = useEventsForMonth(cursor.year, cursor.month)
 
@@ -179,7 +181,13 @@ export default function Calendar() {
         )}
 
         {eventsOnSelected.map((e) => (
-          <article key={e.id} className="card p-md flex gap-md items-start">
+          <button
+            key={e.id}
+            type="button"
+            onClick={() => setSelectedEvent(e)}
+            className="card p-md flex gap-md items-start w-full text-left hover:bg-surface-container-low transition-colors focus:outline-none focus:ring-2 focus:ring-primary/30"
+            aria-label={`Voir les détails de ${e.title}`}
+          >
             <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${KIND_BG[e.kind]}`}>
               <Clock size={18} />
             </div>
@@ -202,12 +210,13 @@ export default function Calendar() {
                 })}
               </p>
               {e.description && (
-                <p className="text-body-md text-on-surface-variant mt-sm">
+                <p className="text-body-md text-on-surface-variant mt-sm line-clamp-2">
                   {e.description}
                 </p>
               )}
             </div>
-          </article>
+            <ChevronRightIcon size={18} className="text-on-surface-variant/60 mt-2 flex-shrink-0" />
+          </button>
         ))}
       </section>
 
@@ -228,6 +237,12 @@ export default function Calendar() {
           onCancel={() => setAddOpen(false)}
         />
       </Modal>
+
+      <EventDetailModal
+        event={selectedEvent}
+        open={!!selectedEvent}
+        onClose={() => setSelectedEvent(null)}
+      />
     </div>
   )
 }

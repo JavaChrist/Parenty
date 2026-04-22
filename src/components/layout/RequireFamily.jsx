@@ -1,9 +1,12 @@
 import { Navigate, Outlet } from 'react-router-dom'
 import { useFamily } from '../../hooks/useFamily'
+import { getPendingInviteToken } from '../../lib/pendingInvite'
 
 /**
- * Garde-fou : si le user n'a pas encore de famille, on l'envoie à l'onboarding.
- * Affiche un écran de chargement pendant que la query tourne.
+ * Garde-fou : si le user n'a pas encore de famille, on l'envoie soit :
+ *  - sur la page d'acceptation d'invitation si un token est en attente
+ *    (cas d'un user invité qui vient de confirmer son email)
+ *  - sinon sur l'onboarding classique (cas du tout premier user).
  */
 export default function RequireFamily() {
   const { data, isLoading, error } = useFamily()
@@ -37,6 +40,10 @@ export default function RequireFamily() {
   }
 
   if (!data?.family) {
+    const pendingToken = getPendingInviteToken()
+    if (pendingToken) {
+      return <Navigate to={`/invite?token=${pendingToken}`} replace />
+    }
     return <Navigate to="/onboarding/child" replace />
   }
 

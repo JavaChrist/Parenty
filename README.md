@@ -32,12 +32,12 @@ npm run dev
 1. Crée un projet Supabase (région : UE — Frankfurt ou Paris).
 2. Applique les migrations SQL **dans l'ordre** depuis le SQL Editor ou via `supabase db push` :
    ```
-   supabase/migrations/20260421_0001_initial_schema.sql
-   supabase/migrations/20260421_0002_rls_policies.sql
-   supabase/migrations/20260422_0003_storage_documents.sql
-   supabase/migrations/20260422_0004_messages.sql
-   supabase/migrations/20260422_0005_profiles_and_avatars.sql
-   supabase/migrations/20260422_0006_message_attachments.sql
+   supabase/migrations/20260421000001_initial_schema.sql
+   supabase/migrations/20260421000002_rls_policies.sql
+   supabase/migrations/20260422000003_storage_documents.sql
+   supabase/migrations/20260422000004_messages.sql
+   supabase/migrations/20260422000005_profiles_and_avatars.sql
+   supabase/migrations/20260422000006_message_attachments.sql
    ```
 3. Déploie l'edge function :
    ```bash

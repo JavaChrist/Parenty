@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect } from 'react'
-import { Send, Paperclip, Smile, X, FileText, Download } from 'lucide-react'
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { Send, Paperclip, Smile, X, FileText, Download, Upload } from 'lucide-react'
 import {
   useMessages,
   useSendMessage,
@@ -7,9 +7,29 @@ import {
   getChatAttachmentUrl,
 } from '../hooks/useMessages'
 import { useAuthStore } from '../stores/authStore'
+import ImageLightbox from '../components/ui/ImageLightbox'
 
 const ACCEPTED_TYPES =
   'image/*,application/pdf,.doc,.docx,.xls,.xlsx,.txt,.csv'
+
+// Même liste que ACCEPTED_TYPES mais sous forme de MIMEs pour filtrer les fichiers
+// déposés via drag-and-drop (les extensions .doc/.xlsx ont leurs MIMEs standards).
+const ACCEPTED_MIME_PREFIXES = ['image/']
+const ACCEPTED_MIMES = new Set([
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'text/plain',
+  'text/csv',
+])
+
+function isAcceptedMime(type) {
+  if (!type) return true
+  if (ACCEPTED_MIME_PREFIXES.some((p) => type.startsWith(p))) return true
+  return ACCEPTED_MIMES.has(type)
+}
 
 function formatSize(bytes) {
   if (bytes == null) return ''
@@ -27,8 +47,11 @@ export default function Chat() {
   const [input, setInput] = useState('')
   const [pendingFile, setPendingFile] = useState(null)
   const [error, setError] = useState(null)
+  const [isDragging, setIsDragging] = useState(false)
+  const [lightbox, setLightbox] = useState(null) // { src, name }
   const endRef = useRef(null)
   const fileInputRef = useRef(null)
+  const dragDepthRef = useRef(0)
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -54,21 +77,56 @@ export default function Chat() {
     return () => URL.revokeObjectURL(url)
   }, [pendingFile])
 
-  const onPickFile = (e) => {
-    const f = e.target.files?.[0]
+  const acceptFile = useCallback((f) => {
     if (!f) return
     if (f.size > 20 * 1024 * 1024) {
       setError('Fichier trop volumineux (20 Mo max).')
-      e.target.value = ''
+      return
+    }
+    if (!isAcceptedMime(f.type)) {
+      setError('Format non supporté.')
       return
     }
     setError(null)
     setPendingFile(f)
+  }, [])
+
+  const onPickFile = (e) => {
+    const f = e.target.files?.[0]
+    acceptFile(f)
+    e.target.value = ''
   }
 
   const clearFile = () => {
     setPendingFile(null)
     if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  // Drag-and-drop : on compte la profondeur pour gérer proprement
+  // enter/leave entre les enfants (événements qui bubblent).
+  const onDragEnter = (e) => {
+    if (!e.dataTransfer?.types?.includes('Files')) return
+    e.preventDefault()
+    dragDepthRef.current += 1
+    setIsDragging(true)
+  }
+  const onDragOver = (e) => {
+    if (!e.dataTransfer?.types?.includes('Files')) return
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'copy'
+  }
+  const onDragLeave = (e) => {
+    if (!e.dataTransfer?.types?.includes('Files')) return
+    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1)
+    if (dragDepthRef.current === 0) setIsDragging(false)
+  }
+  const onDrop = (e) => {
+    if (!e.dataTransfer?.types?.includes('Files')) return
+    e.preventDefault()
+    dragDepthRef.current = 0
+    setIsDragging(false)
+    const f = e.dataTransfer.files?.[0]
+    acceptFile(f)
   }
 
   const send = async (e) => {
@@ -88,7 +146,26 @@ export default function Chat() {
   const canSend = (input.trim() || pendingFile) && !sendMessage.isPending
 
   return (
-    <div className="flex flex-col h-[calc(100vh-9rem)] -mx-4">
+    <div
+      className="relative flex flex-col h-[calc(100vh-9rem)] -mx-4"
+      onDragEnter={onDragEnter}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+    >
+      {isDragging && (
+        <div className="absolute inset-0 z-40 m-3 rounded-2xl border-2 border-dashed border-primary bg-primary-container/40 backdrop-blur-sm flex items-center justify-center pointer-events-none animate-fade-in">
+          <div className="text-center">
+            <Upload size={40} className="mx-auto text-primary" strokeWidth={2} />
+            <p className="mt-2 text-body-lg font-semibold text-primary">
+              Déposer pour joindre
+            </p>
+            <p className="text-caption text-on-primary-container/80">
+              Images, PDF, Word, Excel, texte (20 Mo max)
+            </p>
+          </div>
+        </div>
+      )}
       <div className="px-4 pb-md">
         <h1 className="h-title">Messagerie</h1>
         <p className="text-body-md text-on-surface-variant mt-1">
@@ -111,7 +188,12 @@ export default function Chat() {
           </div>
         )}
         {messages.map((m) => (
-          <Bubble key={m.id} message={m} currentUserId={user?.id} />
+          <Bubble
+            key={m.id}
+            message={m}
+            currentUserId={user?.id}
+            onOpenImage={(payload) => setLightbox(payload)}
+          />
         ))}
         <div ref={endRef} />
       </div>
@@ -207,11 +289,21 @@ export default function Chat() {
           </button>
         </div>
       </form>
+
+      {lightbox && (
+        <ImageLightbox
+          src={lightbox.src}
+          alt={lightbox.name ?? ''}
+          name={lightbox.name}
+          downloadUrl={lightbox.src}
+          onClose={() => setLightbox(null)}
+        />
+      )}
     </div>
   )
 }
 
-function Bubble({ message, currentUserId }) {
+function Bubble({ message, currentUserId, onOpenImage }) {
   const mine = message.sender_id === currentUserId
   const time = new Date(message.created_at).toLocaleTimeString('fr-FR', {
     hour: '2-digit',
@@ -231,7 +323,12 @@ function Bubble({ message, currentUserId }) {
         ].join(' ')}
       >
         {hasAttachment && (
-          <Attachment message={message} mine={mine} compact={hasBody} />
+          <Attachment
+            message={message}
+            mine={mine}
+            compact={hasBody}
+            onOpenImage={onOpenImage}
+          />
         )}
         {hasBody && (
           <p className={`text-body-md leading-snug whitespace-pre-wrap ${hasAttachment ? 'mt-2' : ''}`}>
@@ -251,7 +348,7 @@ function Bubble({ message, currentUserId }) {
   )
 }
 
-function Attachment({ message, mine, compact }) {
+function Attachment({ message, mine, compact, onOpenImage }) {
   const [url, setUrl] = useState(null)
   const [loadError, setLoadError] = useState(false)
   const isImage = message.attachment_mime?.startsWith('image/')
@@ -279,25 +376,28 @@ function Attachment({ message, mine, compact }) {
   }
 
   if (isImage) {
+    const openInLightbox = () => {
+      if (url) onOpenImage?.({ src: url, name: message.attachment_name })
+    }
     return (
-      <a
-        href={url ?? '#'}
-        target="_blank"
-        rel="noreferrer"
-        className="block"
-        aria-label={message.attachment_name}
+      <button
+        type="button"
+        onClick={openInLightbox}
+        disabled={!url}
+        className="block rounded-xl overflow-hidden focus:outline-none focus:ring-2 focus:ring-primary-fixed/60"
+        aria-label={`Agrandir ${message.attachment_name ?? 'image'}`}
       >
         {url ? (
           <img
             src={url}
             alt={message.attachment_name ?? ''}
-            className="rounded-xl max-h-64 w-auto object-cover"
+            className="rounded-xl max-h-64 w-auto object-cover hover:opacity-95 transition-opacity cursor-zoom-in"
             onError={() => setLoadError(true)}
           />
         ) : (
           <div className="h-32 w-48 rounded-xl bg-black/10 animate-pulse" />
         )}
-      </a>
+      </button>
     )
   }
 

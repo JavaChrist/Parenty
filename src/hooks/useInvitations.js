@@ -4,6 +4,34 @@ import { useFamilyId } from './useFamily'
 import { useAuthStore } from '../stores/authStore'
 
 /**
+ * Base URL publique utilisée pour forger les liens d'invitation.
+ *
+ * Priorité :
+ *  1. `VITE_APP_URL` si elle est définie ET cohérente avec le mode courant
+ *     (pas une URL localhost si on tourne déjà sur un domaine public).
+ *  2. `window.location.origin` en fallback — correct en prod, en dev ça donne
+ *     localhost mais ce cas est documenté dans `.env.example`.
+ *
+ * Ce garde-fou évite le piège : si on oublie de configurer `VITE_APP_URL`
+ * sur Vercel et qu'elle reste à `http://localhost:5173`, on préfère l'origin
+ * réelle du navigateur plutôt que de générer un lien cassé.
+ */
+function getAppBaseUrl() {
+  const envUrl = import.meta.env.VITE_APP_URL
+  const origin = typeof window !== 'undefined' ? window.location.origin : ''
+
+  if (envUrl) {
+    const isEnvLocal = /localhost|127\.0\.0\.1/.test(envUrl)
+    const isOriginLocal = /localhost|127\.0\.0\.1/.test(origin)
+    // Si on est sur un domaine public mais que la variable est restée locale,
+    // on ignore la variable (mauvaise config) et on prend l'origin.
+    if (isEnvLocal && origin && !isOriginLocal) return origin.replace(/\/$/, '')
+    return envUrl.replace(/\/$/, '')
+  }
+  return (origin || '').replace(/\/$/, '')
+}
+
+/**
  * Liste les invitations non encore acceptées pour la famille courante.
  */
 export function useInvitations() {
@@ -53,8 +81,7 @@ export function useInviteCoParent() {
 
       if (error) throw error
 
-      const base = import.meta.env.VITE_APP_URL || window.location.origin
-      const inviteUrl = `${base}/invite?token=${data.token}`
+      const inviteUrl = `${getAppBaseUrl()}/invite?token=${data.token}`
 
       return { invitation: data, inviteUrl }
     },
@@ -81,9 +108,28 @@ export function useAcceptInvitation() {
       const { data, error } = await supabase.functions.invoke('accept-invite', {
         body: { token },
       })
-      if (error) throw error
+
+      // Quand la fonction renvoie un non-2xx, supabase-js remplit `error` avec un
+      // FunctionsHttpError dont le `.message` est générique ("Edge Function
+      // returned a non-2xx status code"). Le vrai message métier est dans
+      // `error.context.response` (Response native) → on le récupère manuellement.
+      if (error) {
+        const realMessage = await extractFunctionErrorMessage(error)
+        throw new Error(realMessage || error.message || "Échec de l'invitation.")
+      }
       if (data?.error) throw new Error(data.error)
       return data
     },
   })
+}
+
+async function extractFunctionErrorMessage(error) {
+  try {
+    const response = error?.context?.response
+    if (!response || typeof response.json !== 'function') return null
+    const body = await response.clone().json()
+    return body?.error || null
+  } catch {
+    return null
+  }
 }

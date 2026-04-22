@@ -1,10 +1,13 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Eye, EyeOff } from 'lucide-react'
 import { useAuthStore } from '../stores/authStore'
+import { setPendingInviteToken } from '../lib/pendingInvite'
 
 export default function SignUp() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const inviteToken = searchParams.get('invite') || ''
   const signUp = useAuthStore((s) => s.signUp)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -28,8 +31,23 @@ export default function SignUp() {
 
     setLoading(true)
     try {
+      // Si on arrive ici via un lien d'invitation, on persiste le token AVANT
+      // le signUp : il survivra à la confirmation email et sera repris par
+      // RequireFamily (ou par la nav post-login) pour relancer le flow.
+      if (inviteToken) setPendingInviteToken(inviteToken)
+
       await signUp(email, password)
-      navigate('/onboarding/child')
+
+      // Après signup :
+      //  - avec invitation : on tente directement /invite?token=xxx
+      //    (si la confirmation email est activée, AcceptInvite affichera
+      //    le CTA "Se connecter" une fois le mail confirmé).
+      //  - sans invitation : onboarding classique.
+      if (inviteToken) {
+        navigate(`/invite?token=${inviteToken}`, { replace: true })
+      } else {
+        navigate('/onboarding/child')
+      }
     } catch (err) {
       setError(err.message || 'Une erreur est survenue.')
     } finally {

@@ -110,7 +110,9 @@ serve(async (req) => {
 
     return json({ success: true, familyId: invitation.family_id })
   } catch (err) {
-    return json({ error: err.message }, 500)
+    const message = err instanceof Error ? err.message : String(err)
+    console.error('[accept-invite] unhandled error', err)
+    return json({ error: message }, 500)
   }
 })
 

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useAddEvent, EVENT_KINDS } from '../../hooks/useEvents'
+import { useAddEvent, useUpdateEvent, EVENT_KINDS } from '../../hooks/useEvents'
 import { useChildren } from '../../hooks/useChildren'
 
 // Helpers pour produire "YYYY-MM-DDTHH:mm" au format input datetime-local
@@ -7,22 +7,40 @@ const pad = (n) => String(n).padStart(2, '0')
 const toLocalInput = (d) =>
   `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 
-export default function AddEventForm({ initialDate, onSuccess, onCancel }) {
+/**
+ * Formulaire dual création / édition d'un événement.
+ *
+ * - Si `event` est fourni → mode édition (update)
+ * - Sinon → mode création (insert)
+ */
+export default function AddEventForm({ initialDate, event, onSuccess, onCancel }) {
+  const isEdit = !!event
   const addEvent = useAddEvent()
+  const updateEvent = useUpdateEvent()
   const { data: children = [] } = useChildren()
 
-  const defaultStart = initialDate ? new Date(initialDate) : new Date()
-  defaultStart.setMinutes(0, 0, 0)
-  const defaultEnd = new Date(defaultStart)
-  defaultEnd.setHours(defaultStart.getHours() + 1)
+  const defaultStart = event?.starts_at
+    ? new Date(event.starts_at)
+    : initialDate
+      ? new Date(initialDate)
+      : new Date()
+  if (!event) defaultStart.setMinutes(0, 0, 0)
+
+  const defaultEnd = event?.ends_at
+    ? new Date(event.ends_at)
+    : (() => {
+        const d = new Date(defaultStart)
+        d.setHours(defaultStart.getHours() + 1)
+        return d
+      })()
 
   const [form, setForm] = useState({
-    title: '',
-    kind: 'custody',
+    title: event?.title ?? '',
+    kind: event?.kind ?? 'custody',
     starts_at: toLocalInput(defaultStart),
     ends_at: toLocalInput(defaultEnd),
-    description: '',
-    child_id: '',
+    description: event?.description ?? '',
+    child_id: event?.child_id ?? '',
   })
   const [error, setError] = useState(null)
 
@@ -32,12 +50,18 @@ export default function AddEventForm({ initialDate, onSuccess, onCancel }) {
     e.preventDefault()
     setError(null)
     try {
-      await addEvent.mutateAsync(form)
+      if (isEdit) {
+        await updateEvent.mutateAsync({ eventId: event.id, patch: form })
+      } else {
+        await addEvent.mutateAsync(form)
+      }
       onSuccess?.()
     } catch (err) {
-      setError(err.message || 'Erreur lors de la création.')
+      setError(err.message || (isEdit ? 'Erreur lors de la modification.' : 'Erreur lors de la création.'))
     }
   }
+
+  const isPending = isEdit ? updateEvent.isPending : addEvent.isPending
 
   return (
     <form onSubmit={submit} className="space-y-md">
@@ -122,8 +146,10 @@ export default function AddEventForm({ initialDate, onSuccess, onCancel }) {
         <button type="button" onClick={onCancel} className="btn-secondary flex-1">
           Annuler
         </button>
-        <button type="submit" disabled={addEvent.isPending} className="btn-primary flex-1">
-          {addEvent.isPending ? 'Création…' : 'Créer'}
+        <button type="submit" disabled={isPending} className="btn-primary flex-1">
+          {isPending
+            ? (isEdit ? 'Enregistrement…' : 'Création…')
+            : (isEdit ? 'Enregistrer' : 'Créer')}
         </button>
       </div>
     </form>

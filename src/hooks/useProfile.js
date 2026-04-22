@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
+import { resizeImage } from '../lib/image'
 import { useAuthStore } from '../stores/authStore'
 
 const PROFILE_FIELDS = 'id, first_name, last_name, phone, avatar_path, updated_at'
@@ -88,44 +89,6 @@ export function useUpdateProfile() {
 }
 
 /**
- * Redimensionne une image côté client via canvas.
- * - Recadre au centre (crop carré) pour un avatar parfaitement circulaire
- * - Sort en JPEG qualité 0.9 (taille divisée typiquement par 5 à 20×)
- * - Les GIF animés sont uploadés tels quels pour préserver l'animation
- */
-async function resizeImage(file, maxSize = 512) {
-  if (file.type === 'image/gif') return file
-
-  const bitmap = await createImageBitmap(file).catch(() => null)
-  if (!bitmap) {
-    // Fallback : si createImageBitmap n'est pas dispo / l'image est corrompue
-    return file
-  }
-
-  const side = Math.min(bitmap.width, bitmap.height)
-  const sx = (bitmap.width - side) / 2
-  const sy = (bitmap.height - side) / 2
-  const target = Math.min(maxSize, side)
-
-  const canvas = document.createElement('canvas')
-  canvas.width = target
-  canvas.height = target
-  const ctx = canvas.getContext('2d')
-  if (!ctx) return file
-  ctx.imageSmoothingEnabled = true
-  ctx.imageSmoothingQuality = 'high'
-  ctx.drawImage(bitmap, sx, sy, side, side, 0, 0, target, target)
-  bitmap.close?.()
-
-  const blob = await new Promise((resolve) =>
-    canvas.toBlob(resolve, 'image/jpeg', 0.9),
-  )
-  if (!blob) return file
-
-  return new File([blob], 'avatar.jpg', { type: 'image/jpeg' })
-}
-
-/**
  * Upload d'une photo de profil dans le bucket "avatars".
  * - Validation format/taille côté client
  * - Recadrage + redimensionnement en 512×512 JPEG avant upload
@@ -149,7 +112,7 @@ export function useUploadAvatar() {
         throw new Error('Image trop volumineuse (5 Mo max).')
       }
 
-      const processed = await resizeImage(file, 512)
+      const processed = await resizeImage(file, { maxSize: 512, quality: 0.9, square: true })
       const ext = processed.type === 'image/gif'
         ? 'gif'
         : processed.type === 'image/jpeg'

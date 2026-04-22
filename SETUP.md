@@ -35,8 +35,12 @@ npm run sb:db:push
 ```
 
 **Option B — via le Dashboard (SQL Editor) :** colle le contenu de :
-1. `supabase/migrations/20260421_0001_initial_schema.sql`
-2. `supabase/migrations/20260421_0002_rls_policies.sql`
+1. `supabase/migrations/20260421000001_initial_schema.sql`
+2. `supabase/migrations/20260421000002_rls_policies.sql`
+3. `supabase/migrations/20260422000003_storage_documents.sql`
+4. `supabase/migrations/20260422000004_messages.sql`
+5. `supabase/migrations/20260422000005_profiles_and_avatars.sql`
+6. `supabase/migrations/20260422000006_message_attachments.sql`
 
 Et clique **Run** pour chaque.
 

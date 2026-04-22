@@ -4,6 +4,10 @@ import { useQueryClient } from '@tanstack/react-query'
 import { Check, XCircle } from 'lucide-react'
 import { useAuthStore } from '../stores/authStore'
 import { useAcceptInvitation } from '../hooks/useInvitations'
+import {
+  setPendingInviteToken,
+  clearPendingInviteToken,
+} from '../lib/pendingInvite'
 
 export default function AcceptInvite() {
   const [params] = useSearchParams()
@@ -16,6 +20,12 @@ export default function AcceptInvite() {
 
   const [status, setStatus] = useState('idle') // idle | loading | success | error
   const [message, setMessage] = useState('')
+
+  // Dès qu'un token arrive dans l'URL, on le persiste en localStorage.
+  // Il servira à reprendre le flow après signup + confirmation email.
+  useEffect(() => {
+    if (token) setPendingInviteToken(token)
+  }, [token])
 
   useEffect(() => {
     if (authLoading) return
@@ -30,6 +40,7 @@ export default function AcceptInvite() {
     accept
       .mutateAsync(token)
       .then((res) => {
+        clearPendingInviteToken()
         setStatus('success')
         setMessage(
           res?.alreadyMember
@@ -76,7 +87,10 @@ export default function AcceptInvite() {
                 >
                   Se connecter
                 </Link>
-                <Link to={`/signup`} className="btn-secondary w-full">
+                <Link
+                  to={`/signup?invite=${token ?? ''}`}
+                  className="btn-secondary w-full"
+                >
                   Créer un compte
                 </Link>
               </div>
