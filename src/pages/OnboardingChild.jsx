@@ -19,70 +19,32 @@ export default function OnboardingChild() {
     e.preventDefault()
     setError(null)
     setLoading(true)
-
     try {
-      // Vérification session
       const { data: sessionData } = await supabase.auth.getSession()
-      const s = sessionData.session
-      console.log('[ONBOARDING] Debug session:', JSON.stringify({
-        has_session: !!s,
-        user_id: s?.user?.id ?? null,
-        email: s?.user?.email ?? null,
-        has_access_token: !!s?.access_token,
-      }, null, 2))
-
-      if (!s) {
+      if (!sessionData.session) {
         throw new Error('Aucune session active. Reconnecte-toi.')
       }
 
-      // 1. Créer la famille (trigger SQL associe le user ensuite)
       const { data: family, error: familyError } = await supabase
         .from('families')
         .insert({ name: `Famille de ${user.email.split('@')[0]}` })
         .select()
         .single()
+      if (familyError) throw familyError
 
-      if (familyError) {
-        console.error('[ONBOARDING] Erreur INSERT families (JSON):',
-          JSON.stringify(familyError, null, 2))
-        throw new Error(
-          `${familyError.message || 'Erreur inconnue'}` +
-          (familyError.code ? ` [code: ${familyError.code}]` : '') +
-          (familyError.hint ? ` — ${familyError.hint}` : '') +
-          (familyError.details ? ` (${familyError.details})` : '')
-        )
-      }
-
-      console.log('[ONBOARDING] Famille créée :', family)
-
-      // 2. Ajouter l'enfant
       const { error: childError } = await supabase.from('children').insert({
         family_id: family.id,
         first_name: firstName,
         birth_date: birthDate,
       })
+      if (childError) throw childError
 
-      if (childError) {
-        console.error('[ONBOARDING] Erreur INSERT children (JSON):',
-          JSON.stringify(childError, null, 2))
-        throw new Error(childError.message || 'Erreur lors de l\'ajout de l\'enfant.')
-      }
-
-      // Invalider les caches React Query pour que les hooks refetch la famille
-      // (sinon RequireFamily continue à voir "pas de famille" et boucle ici)
       await queryClient.invalidateQueries({ queryKey: ['family'] })
       await queryClient.invalidateQueries({ queryKey: ['children'] })
       await queryClient.invalidateQueries({ queryKey: ['family-members'] })
 
       navigate('/onboarding/invite')
     } catch (err) {
-      console.error('[ONBOARDING] Erreur complète (JSON):',
-        JSON.stringify({
-          message: err.message,
-          code: err.code,
-          hint: err.hint,
-          details: err.details,
-        }, null, 2))
       setError(err.message || 'Erreur inconnue')
     } finally {
       setLoading(false)

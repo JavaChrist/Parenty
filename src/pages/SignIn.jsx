@@ -22,11 +22,8 @@ export default function SignIn() {
       if (msg === 'Invalid login credentials') {
         setError('Email ou mot de passe incorrect.')
       } else if (msg === 'Email not confirmed') {
-        setError(
-          'Ton email n\'est pas encore confirmé. Va dans Supabase Dashboard > Authentication > Users pour confirmer ton compte, ou décoche "Confirm email" dans Authentication > Providers > Email.'
-        )
+        setError('Ton email n\'est pas encore confirmé. Va dans Dashboard Supabase > Authentication > Users pour confirmer ton compte, ou décoche "Confirm email" dans Providers > Email.')
       } else {
-        // Affiche le vrai message pour faciliter le debug
         setError(msg || 'Une erreur est survenue. Réessaie.')
       }
     } finally {
@@ -38,17 +35,9 @@ export default function SignIn() {
     <div className="min-h-screen flex items-center justify-center bg-background px-4 py-12">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <img
-            src="/icons/logo128.png"
-            alt="Parenty"
-            className="mx-auto h-20 w-20 rounded-2xl shadow-soft"
-            width="80"
-            height="80"
-          />
+          <img src="/icons/logo128.png" alt="Parenty" className="mx-auto h-20 w-20 rounded-2xl shadow-soft" width="80" height="80" />
           <h1 className="font-display text-display text-primary mt-md">Parenty</h1>
-          <p className="text-body-md text-on-surface-variant mt-1">
-            Organisation parentale partagée
-          </p>
+          <p className="text-body-md text-on-surface-variant mt-1">Organisation parentale partagée</p>
         </div>
 
         <form onSubmit={handleSubmit} className="card-elevated p-lg space-y-md">
@@ -56,28 +45,12 @@ export default function SignIn() {
 
           <div>
             <label className="label" htmlFor="email">Email</label>
-            <input
-              id="email"
-              type="email"
-              autoComplete="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="input"
-            />
+            <input id="email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="input" />
           </div>
 
           <div>
             <label className="label" htmlFor="password">Mot de passe</label>
-            <input
-              id="password"
-              type="password"
-              autoComplete="current-password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="input"
-            />
+            <input id="password" type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} className="input" />
           </div>
 
           {error && (
@@ -92,9 +65,7 @@ export default function SignIn() {
 
           <p className="text-body-md text-center text-on-surface-variant">
             Pas encore de compte ?{' '}
-            <Link to="/signup" className="text-primary font-semibold">
-              Créer un compte
-            </Link>
+            <Link to="/signup" className="text-primary font-semibold">Créer un compte</Link>
           </p>
         </form>
       </div>

@@ -14,7 +14,6 @@ export default function OnboardingInvite() {
   const [loading, setLoading] = useState(false)
 
   const goToDashboard = async () => {
-    // Forcer le refetch de la famille pour éviter que RequireFamily redirige
     await queryClient.invalidateQueries({ queryKey: ['family'] })
     await queryClient.invalidateQueries({ queryKey: ['children'] })
     await queryClient.invalidateQueries({ queryKey: ['family-members'] })
@@ -25,15 +24,9 @@ export default function OnboardingInvite() {
     e.preventDefault()
     setError(null)
     setLoading(true)
-
     try {
-      const { error: fnError } = await supabase.functions.invoke(
-        'invite-parent',
-        { body: { email } }
-      )
-
+      const { error: fnError } = await supabase.functions.invoke('invite-parent', { body: { email } })
       if (fnError) throw fnError
-
       await goToDashboard()
     } catch (err) {
       setError(err.message || 'Une erreur est survenue.')
@@ -42,9 +35,7 @@ export default function OnboardingInvite() {
     }
   }
 
-  const handleSkip = () => {
-    goToDashboard()
-  }
+  const handleSkip = () => goToDashboard()
 
   const handleSignOut = async () => {
     await signOut()
@@ -58,9 +49,7 @@ export default function OnboardingInvite() {
           <p className="text-caption text-on-surface-variant uppercase tracking-wide mb-1">
             Étape 2 sur 2
           </p>
-          <h1 className="h-title">
-            Inviter l'autre parent
-          </h1>
+          <h1 className="h-title">Inviter l'autre parent</h1>
           <p className="text-body-md text-on-surface-variant mt-2">
             Optionnel. Tu peux l'inviter maintenant ou plus tard depuis ton profil.
           </p>
@@ -86,18 +75,10 @@ export default function OnboardingInvite() {
           )}
 
           <div className="space-y-2">
-            <button
-              type="submit"
-              disabled={loading || !email}
-              className="btn-primary w-full"
-            >
+            <button type="submit" disabled={loading || !email} className="btn-primary w-full">
               {loading ? 'Envoi…' : 'Envoyer l\'invitation'}
             </button>
-            <button
-              type="button"
-              onClick={handleSkip}
-              className="btn-ghost w-full"
-            >
+            <button type="button" onClick={handleSkip} className="btn-ghost w-full">
               Passer pour l'instant
             </button>
           </div>

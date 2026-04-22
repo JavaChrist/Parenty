@@ -1,86 +1,69 @@
 import { useState, useRef, useEffect } from 'react'
 import { Send, Paperclip, Smile } from 'lucide-react'
-
-const DEMO_MESSAGES = [
-  {
-    id: 1,
-    from: 'other',
-    text: 'Hello, tu peux récupérer Léa à 17h30 demain ?',
-    time: '09:42',
-  },
-  {
-    id: 2,
-    from: 'me',
-    text: 'Oui pas de souci. Elle a son cours de piano après ?',
-    time: '09:45',
-  },
-  {
-    id: 3,
-    from: 'other',
-    text: 'Non piano c\'est mercredi. Juste rentrer à la maison 👍',
-    time: '09:46',
-  },
-  {
-    id: 4,
-    from: 'me',
-    text: 'Parfait. Je mets un rappel dans l\'agenda.',
-    time: '09:47',
-  },
-  {
-    id: 5,
-    from: 'other',
-    text: 'Merci 🙏',
-    time: '09:48',
-  },
-]
+import { useMessages, useSendMessage } from '../hooks/useMessages'
+import { useAuthStore } from '../stores/authStore'
 
 export default function Chat() {
-  const [messages, setMessages] = useState(DEMO_MESSAGES)
+  const user = useAuthStore((s) => s.user)
+  const { data: messages = [], isLoading } = useMessages()
+  const sendMessage = useSendMessage()
+
   const [input, setInput] = useState('')
+  const [error, setError] = useState(null)
   const endRef = useRef(null)
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  const send = (e) => {
+  const send = async (e) => {
     e.preventDefault()
+    setError(null)
     const text = input.trim()
     if (!text) return
-    setMessages((m) => [
-      ...m,
-      {
-        id: Date.now(),
-        from: 'me',
-        text,
-        time: new Date().toLocaleTimeString('fr-FR', {
-          hour: '2-digit',
-          minute: '2-digit',
-        }),
-      },
-    ])
-    setInput('')
+    try {
+      await sendMessage.mutateAsync(text)
+      setInput('')
+    } catch (err) {
+      setError(err.message || 'Erreur d\'envoi.')
+    }
   }
 
   return (
     <div className="flex flex-col h-[calc(100vh-9rem)] -mx-4">
-      {/* En-tête discret */}
       <div className="px-4 pb-md">
         <h1 className="h-title">Messagerie</h1>
         <p className="text-body-md text-on-surface-variant mt-1">
-          Échanges factuels avec le co-parent. Tout est historisé.
+          Échanges factuels avec le co-parent. Tout est historisé, rien n'est supprimable.
         </p>
       </div>
 
-      {/* Fil de messages */}
       <div className="flex-1 overflow-y-auto px-4 space-y-sm scrollbar-soft">
+        {isLoading && (
+          <p className="text-center text-on-surface-variant py-lg">Chargement…</p>
+        )}
+        {!isLoading && messages.length === 0 && (
+          <div className="text-center py-lg">
+            <p className="text-body-md text-on-surface-variant">
+              Aucun message pour l'instant.
+            </p>
+            <p className="text-caption text-on-surface-variant/70 mt-1">
+              Envoie le premier message au co-parent.
+            </p>
+          </div>
+        )}
         {messages.map((m) => (
-          <Bubble key={m.id} message={m} />
+          <Bubble key={m.id} message={m} currentUserId={user?.id} />
         ))}
         <div ref={endRef} />
       </div>
 
-      {/* Composer */}
+      {error && (
+        <div className="mx-4 text-body-md text-on-error-container bg-error-container rounded-md p-2 text-center">
+          {error}
+        </div>
+      )}
+
       <form
         onSubmit={send}
         className="sticky bottom-0 bg-surface-container-lowest border-t border-outline-variant/40 px-4 py-3"
@@ -88,8 +71,9 @@ export default function Chat() {
         <div className="flex items-end gap-2 bg-surface-container-low rounded-2xl px-3 py-2">
           <button
             type="button"
-            className="p-2 text-on-surface-variant hover:text-primary transition-colors"
-            aria-label="Joindre"
+            className="p-2 text-on-surface-variant/50 cursor-not-allowed"
+            aria-label="Joindre (bientôt)"
+            disabled
           >
             <Paperclip size={20} />
           </button>
@@ -108,14 +92,15 @@ export default function Chat() {
           />
           <button
             type="button"
-            className="p-2 text-on-surface-variant hover:text-primary transition-colors"
-            aria-label="Emoji"
+            className="p-2 text-on-surface-variant/50 cursor-not-allowed"
+            aria-label="Emoji (bientôt)"
+            disabled
           >
             <Smile size={20} />
           </button>
           <button
             type="submit"
-            disabled={!input.trim()}
+            disabled={!input.trim() || sendMessage.isPending}
             className="p-2.5 rounded-full bg-primary text-on-primary disabled:opacity-40 transition-all active:scale-95"
             aria-label="Envoyer"
           >
@@ -127,8 +112,12 @@ export default function Chat() {
   )
 }
 
-function Bubble({ message }) {
-  const mine = message.from === 'me'
+function Bubble({ message, currentUserId }) {
+  const mine = message.sender_id === currentUserId
+  const time = new Date(message.created_at).toLocaleTimeString('fr-FR', {
+    hour: '2-digit',
+    minute: '2-digit',
+  })
   return (
     <div className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
       <div
@@ -140,7 +129,7 @@ function Bubble({ message }) {
         ].join(' ')}
       >
         <p className="text-body-md leading-snug whitespace-pre-wrap">
-          {message.text}
+          {message.body}
         </p>
         <p
           className={[
@@ -148,7 +137,7 @@ function Bubble({ message }) {
             mine ? 'text-on-primary/70' : 'text-on-surface-variant',
           ].join(' ')}
         >
-          {message.time}
+          {time}
         </p>
       </div>
     </div>

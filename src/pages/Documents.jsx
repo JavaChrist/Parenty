@@ -4,65 +4,80 @@ import {
   Upload,
   FileText,
   FileImage,
-  FileSpreadsheet,
   HeartPulse,
   GraduationCap,
   Landmark,
-  ChevronRight,
+  Scale,
+  Folder,
+  Download,
+  Trash2,
 } from 'lucide-react'
+import {
+  useDocuments,
+  useDeleteDocument,
+  getDocumentSignedUrl,
+  DOCUMENT_CATEGORIES,
+} from '../hooks/useDocuments'
+import Modal from '../components/ui/Modal'
+import UploadDocumentForm from '../components/documents/UploadDocumentForm'
 
-const CATEGORIES = [
-  { key: 'sante', label: 'Santé', icon: HeartPulse, count: 3 },
-  { key: 'ecole', label: 'École', icon: GraduationCap, count: 5 },
-  { key: 'admin', label: 'Administratif', icon: Landmark, count: 2 },
-]
+const CATEGORY_ICONS = {
+  school: GraduationCap,
+  medical: HeartPulse,
+  admin: Landmark,
+  legal: Scale,
+  other: Folder,
+}
 
-const DEMO_FILES = [
-  {
-    id: 1,
-    name: 'Carnet de santé — page vaccins',
-    category: 'Santé',
-    size: '1.2 Mo',
-    type: 'pdf',
-    date: '20 oct.',
-  },
-  {
-    id: 2,
-    name: 'Bulletin CE1 — trimestre 1',
-    category: 'École',
-    size: '840 Ko',
-    type: 'pdf',
-    date: '14 oct.',
-  },
-  {
-    id: 3,
-    name: 'Jugement de divorce (extrait)',
-    category: 'Administratif',
-    size: '2.1 Mo',
-    type: 'pdf',
-    date: '02 oct.',
-  },
-  {
-    id: 4,
-    name: 'Photo de classe',
-    category: 'École',
-    size: '3.4 Mo',
-    type: 'image',
-    date: '28 sep.',
-  },
-]
+const CATEGORY_LABELS = Object.fromEntries(
+  DOCUMENT_CATEGORIES.map((c) => [c.value, c.label])
+)
 
-const FILE_ICONS = {
-  pdf: FileText,
-  image: FileImage,
-  sheet: FileSpreadsheet,
+function formatSize(bytes) {
+  if (!bytes) return ''
+  if (bytes < 1024) return `${bytes} o`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} Ko`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} Mo`
+}
+
+function getFileIcon(mime) {
+  if (mime?.startsWith('image/')) return FileImage
+  return FileText
 }
 
 export default function Documents() {
+  const { data: documents = [], isLoading } = useDocuments()
+  const deleteDoc = useDeleteDocument()
+
   const [q, setQ] = useState('')
-  const visible = DEMO_FILES.filter((f) =>
-    f.name.toLowerCase().includes(q.toLowerCase()),
-  )
+  const [categoryFilter, setCategoryFilter] = useState(null)
+  const [uploadOpen, setUploadOpen] = useState(false)
+
+  const filtered = documents.filter((d) => {
+    const matchQ = d.title.toLowerCase().includes(q.toLowerCase())
+    const matchCat = !categoryFilter || d.category === categoryFilter
+    return matchQ && matchCat
+  })
+
+  const counts = DOCUMENT_CATEGORIES.map((c) => ({
+    ...c,
+    count: documents.filter((d) => d.category === c.value).length,
+  }))
+
+  const openDoc = async (doc) => {
+    try {
+      const url = await getDocumentSignedUrl(doc.storage_path)
+      if (url) window.open(url, '_blank', 'noopener')
+    } catch (err) {
+      alert('Impossible d\'ouvrir : ' + err.message)
+    }
+  }
+
+  const onDelete = (doc) => {
+    if (confirm(`Supprimer "${doc.title}" ? (soft delete, le fichier physique est aussi retiré)`)) {
+      deleteDoc.mutate(doc)
+    }
+  }
 
   return (
     <div className="space-y-lg">
@@ -73,7 +88,6 @@ export default function Documents() {
         </p>
       </header>
 
-      {/* Recherche */}
       <label className="relative block">
         <Search
           size={18}
@@ -88,74 +102,133 @@ export default function Documents() {
       </label>
 
       {/* Catégories */}
-      <section className="grid grid-cols-3 gap-md">
-        {CATEGORIES.map(({ key, label, icon: Icon, count }) => (
-          <button
-            key={key}
-            className="card p-md flex flex-col items-start gap-2 hover:shadow-card-hover transition-shadow"
-          >
-            <div className="h-10 w-10 rounded-full bg-primary-container/20 flex items-center justify-center text-primary">
-              <Icon size={20} strokeWidth={2} />
-            </div>
-            <div>
-              <p className="text-label-sm text-on-surface">{label}</p>
-              <p className="text-caption text-on-surface-variant">
-                {count} fichier{count > 1 ? 's' : ''}
-              </p>
-            </div>
-          </button>
-        ))}
+      <section className="flex gap-md overflow-x-auto pb-2 -mx-4 px-4 scrollbar-soft">
+        <CategoryChip
+          label="Tout"
+          icon={Folder}
+          count={documents.length}
+          active={categoryFilter === null}
+          onClick={() => setCategoryFilter(null)}
+        />
+        {counts.map(({ value, label, count }) => {
+          const Icon = CATEGORY_ICONS[value] ?? Folder
+          return (
+            <CategoryChip
+              key={value}
+              label={label}
+              icon={Icon}
+              count={count}
+              active={categoryFilter === value}
+              onClick={() =>
+                setCategoryFilter(categoryFilter === value ? null : value)
+              }
+            />
+          )
+        })}
       </section>
 
-      {/* CTA upload */}
-      <button className="btn-primary w-full">
+      <button onClick={() => setUploadOpen(true)} className="btn-primary w-full">
         <Upload size={18} strokeWidth={2.5} />
         Déposer un document
       </button>
 
-      {/* Liste récents */}
       <section className="space-y-sm">
         <h2 className="text-label-sm text-on-surface-variant uppercase tracking-wide px-sm">
-          Récents
+          {categoryFilter ? CATEGORY_LABELS[categoryFilter] : 'Tous'}
         </h2>
 
+        {isLoading && (
+          <div className="card p-lg text-center text-on-surface-variant">Chargement…</div>
+        )}
+
+        {!isLoading && filtered.length === 0 && (
+          <div className="card p-lg text-center text-on-surface-variant">
+            Aucun document.
+          </div>
+        )}
+
         <div className="card divide-y divide-outline-variant/40">
-          {visible.length === 0 && (
-            <p className="p-lg text-center text-body-md text-on-surface-variant">
-              Aucun document trouvé.
-            </p>
-          )}
-          {visible.map((f) => {
-            const Icon = FILE_ICONS[f.type] ?? FileText
+          {filtered.map((d) => {
+            const Icon = getFileIcon(d.mime_type)
             return (
-              <button
-                key={f.id}
-                className="w-full flex items-center gap-md p-md hover:bg-surface-container-low transition-colors text-left"
+              <div
+                key={d.id}
+                className="w-full flex items-center gap-md p-md hover:bg-surface-container-low transition-colors"
               >
-                <div className="h-11 w-11 rounded-md bg-surface-container flex items-center justify-center text-primary flex-shrink-0">
-                  <Icon size={20} strokeWidth={2} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-body-md font-semibold text-on-surface truncate">
-                    {f.name}
-                  </p>
-                  <p className="text-caption text-on-surface-variant">
-                    {f.category} · {f.size} · {f.date}
-                  </p>
-                </div>
-                <ChevronRight
-                  size={18}
-                  className="text-on-surface-variant flex-shrink-0"
-                />
-              </button>
+                <button
+                  onClick={() => openDoc(d)}
+                  className="flex items-center gap-md flex-1 min-w-0 text-left"
+                >
+                  <div className="h-11 w-11 rounded-md bg-surface-container flex items-center justify-center text-primary flex-shrink-0">
+                    <Icon size={20} strokeWidth={2} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-body-md font-semibold text-on-surface truncate">
+                      {d.title}
+                    </p>
+                    <p className="text-caption text-on-surface-variant">
+                      {CATEGORY_LABELS[d.category] ?? d.category}
+                      {d.size_bytes ? ` · ${formatSize(d.size_bytes)}` : ''}
+                      {' · '}
+                      {new Date(d.uploaded_at).toLocaleDateString('fr-FR')}
+                    </p>
+                  </div>
+                </button>
+                <button
+                  onClick={() => openDoc(d)}
+                  className="p-2 rounded-full text-on-surface-variant hover:bg-surface-container transition-colors"
+                  aria-label="Télécharger"
+                >
+                  <Download size={18} />
+                </button>
+                <button
+                  onClick={() => onDelete(d)}
+                  disabled={deleteDoc.isPending}
+                  className="p-2 rounded-full text-on-surface-variant hover:bg-error-container hover:text-on-error-container transition-colors"
+                  aria-label="Supprimer"
+                >
+                  <Trash2 size={18} />
+                </button>
+              </div>
             )
           })}
         </div>
       </section>
 
       <p className="text-caption text-on-surface-variant/70 text-center">
-        Règle : pas d'édition possible. Suppression = soft delete.
+        Règle : pas d'édition possible. Suppression = soft delete (log conservé).
       </p>
+
+      <Modal
+        open={uploadOpen}
+        onClose={() => setUploadOpen(false)}
+        title="Déposer un document"
+      >
+        <UploadDocumentForm
+          onSuccess={() => setUploadOpen(false)}
+          onCancel={() => setUploadOpen(false)}
+        />
+      </Modal>
     </div>
+  )
+}
+
+function CategoryChip({ label, icon: Icon, count, active, onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      className={[
+        'flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-full border transition-colors',
+        active
+          ? 'bg-primary text-on-primary border-primary'
+          : 'bg-surface-container-lowest border-outline-variant text-on-surface hover:bg-surface-container-low',
+      ].join(' ')}
+    >
+      <Icon size={16} strokeWidth={2} />
+      <span className="text-label-sm font-semibold">{label}</span>
+      <span className={`text-caption ${active ? 'opacity-80' : 'opacity-60'}`}>
+        {count}
+      </span>
+    </button>
   )
 }

@@ -1,100 +1,143 @@
-import { useState } from 'react'
-import { Car, PenLine, Plus, ArrowLeftRight } from 'lucide-react'
+import { useState, useMemo } from 'react'
+import { Plus, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock } from 'lucide-react'
+import { useEventsForMonth, EVENT_KINDS } from '../hooks/useEvents'
+import Modal from '../components/ui/Modal'
+import AddEventForm from '../components/events/AddEventForm'
 
-// Petite simulation d'un mois de garde partagée
-// (teal = moi, orange doux = autre parent)
 const MONTHS = [
   'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
   'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre',
 ]
 const WEEK_DAYS = ['L', 'M', 'M', 'J', 'V', 'S', 'D']
 
-const DEMO_DAYS = Array.from({ length: 28 }, (_, i) => {
-  const n = i + 1
-  // Alternance 2-3-2 jours de façon simple
-  const weekIndex = Math.floor(i / 7)
-  const dayInWeek = i % 7
-  const mom = (weekIndex % 2 === 0 && dayInWeek < 3) || (weekIndex % 2 === 1 && dayInWeek >= 5)
-  return { day: n, owner: mom ? 'moi' : 'autre', handover: n === 11 }
-})
+const KIND_META = Object.fromEntries(
+  EVENT_KINDS.map((k) => [k.value, k])
+)
+
+// Classes Tailwind par kind (Tailwind ne peut pas générer des classes dynamiques)
+const KIND_BG = {
+  custody: 'bg-primary-container text-on-primary-container',
+  vacation: 'bg-tertiary-fixed text-on-tertiary-fixed-variant',
+  school: 'bg-surface-container-high text-on-surface',
+  medical: 'bg-error-container text-on-error-container',
+  other: 'bg-surface-container text-on-surface-variant',
+}
+
+// Retourne un tableau de 42 cases (6 semaines) pour afficher le mois
+function buildMonthGrid(year, month) {
+  const first = new Date(year, month, 1)
+  // Lundi = 1 en France. getDay() renvoie 0 pour dimanche
+  const startOffset = (first.getDay() + 6) % 7
+  const days = []
+  for (let i = 0; i < 42; i++) {
+    const date = new Date(year, month, i - startOffset + 1)
+    days.push(date)
+  }
+  return days
+}
+
+function sameDay(a, b) {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  )
+}
+
+function overlapsDay(event, day) {
+  const start = new Date(event.starts_at)
+  const end = new Date(event.ends_at)
+  const dayStart = new Date(day.getFullYear(), day.getMonth(), day.getDate())
+  const dayEnd = new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1)
+  return start < dayEnd && end >= dayStart
+}
 
 export default function Calendar() {
-  const now = new Date()
-  const [view, setView] = useState('month')
-  const [selected, setSelected] = useState(20)
+  const today = new Date()
+  const [cursor, setCursor] = useState({ year: today.getFullYear(), month: today.getMonth() })
+  const [selectedDate, setSelectedDate] = useState(today)
+  const [addOpen, setAddOpen] = useState(false)
+
+  const { data: events = [], isLoading } = useEventsForMonth(cursor.year, cursor.month)
+
+  const days = useMemo(() => buildMonthGrid(cursor.year, cursor.month), [cursor])
+
+  const activeEvents = events.filter((e) => !e.cancelled_at)
+
+  const eventsOnSelected = activeEvents.filter((e) => overlapsDay(e, selectedDate))
+
+  const goMonth = (delta) => {
+    setCursor(({ year, month }) => {
+      const d = new Date(year, month + delta, 1)
+      return { year: d.getFullYear(), month: d.getMonth() }
+    })
+  }
 
   return (
     <div className="space-y-md">
       <header className="flex items-center justify-between">
-        <h1 className="h-title">
-          {MONTHS[now.getMonth()]} {now.getFullYear()}
-        </h1>
-
-        <div className="flex p-1 bg-surface-container rounded-full">
-          {['week', 'month'].map((v) => (
-            <button
-              key={v}
-              onClick={() => setView(v)}
-              className={[
-                'px-4 py-1.5 rounded-full text-label-sm transition-all',
-                view === v
-                  ? 'bg-surface-container-lowest shadow-soft text-on-surface'
-                  : 'text-on-surface-variant',
-              ].join(' ')}
-            >
-              {v === 'week' ? 'Semaine' : 'Mois'}
-            </button>
-          ))}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => goMonth(-1)}
+            className="p-2 rounded-full hover:bg-surface-container-low text-on-surface-variant"
+            aria-label="Mois précédent"
+          >
+            <ChevronLeft size={20} />
+          </button>
+          <h1 className="h-title">
+            {MONTHS[cursor.month]} {cursor.year}
+          </h1>
+          <button
+            onClick={() => goMonth(1)}
+            className="p-2 rounded-full hover:bg-surface-container-low text-on-surface-variant"
+            aria-label="Mois suivant"
+          >
+            <ChevronRight size={20} />
+          </button>
         </div>
+        <button
+          onClick={() => setCursor({ year: today.getFullYear(), month: today.getMonth() })}
+          className="text-label-sm text-primary font-semibold"
+        >
+          Aujourd'hui
+        </button>
       </header>
 
-      {/* Légende */}
-      <div className="flex items-center gap-lg px-sm">
-        <LegendItem color="bg-primary-container" label="Mes jours" />
-        <LegendItem color="bg-tertiary-fixed" label="Co-parent" />
-      </div>
-
-      {/* Grille calendrier */}
       <section className="card-elevated p-md">
         <div className="grid grid-cols-7 mb-sm">
           {WEEK_DAYS.map((d, i) => (
-            <div
-              key={i}
-              className="text-center text-label-sm text-on-surface-variant py-1"
-            >
-              {d}
-            </div>
+            <div key={i} className="text-center text-label-sm text-on-surface-variant py-1">{d}</div>
           ))}
         </div>
 
-        <div className="grid grid-cols-7 gap-y-1">
-          {DEMO_DAYS.map(({ day, owner, handover }, i) => {
-            const isMom = owner === 'moi'
-            const isSelected = selected === day
-            const prevOwner = i > 0 ? DEMO_DAYS[i - 1].owner : null
-            const nextOwner = i < DEMO_DAYS.length - 1 ? DEMO_DAYS[i + 1].owner : null
-            const roundLeft = prevOwner !== owner
-            const roundRight = nextOwner !== owner
-            const baseBg = isMom
-              ? 'bg-primary-container text-on-primary-container'
-              : 'bg-tertiary-fixed text-on-tertiary-fixed-variant'
+        <div className="grid grid-cols-7 gap-1">
+          {days.map((day, i) => {
+            const inMonth = day.getMonth() === cursor.month
+            const isToday = sameDay(day, today)
+            const isSelected = sameDay(day, selectedDate)
+            const dayEvents = activeEvents.filter((e) => overlapsDay(e, day))
+            const firstKind = dayEvents[0]?.kind
 
             return (
               <button
-                key={day}
-                onClick={() => setSelected(day)}
+                key={i}
+                onClick={() => setSelectedDate(day)}
                 className={[
-                  'relative aspect-square flex items-center justify-center text-body-md transition-all',
-                  roundLeft ? 'rounded-l-lg ml-1' : '',
-                  roundRight ? 'rounded-r-lg' : '',
+                  'aspect-square flex flex-col items-center justify-center rounded-lg text-body-md relative transition-all',
+                  !inMonth && 'opacity-30',
                   isSelected
-                    ? 'bg-primary text-on-primary rounded-lg shadow-card scale-105 z-10 font-bold'
-                    : baseBg,
-                ].join(' ')}
+                    ? 'bg-primary text-on-primary font-bold shadow-card scale-105 z-10'
+                    : firstKind
+                      ? KIND_BG[firstKind]
+                      : 'hover:bg-surface-container-low',
+                  isToday && !isSelected && 'ring-2 ring-primary',
+                ].filter(Boolean).join(' ')}
               >
-                <span>{day}</span>
-                {handover && !isSelected && (
-                  <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-primary" />
+                <span>{day.getDate()}</span>
+                {dayEvents.length > 1 && !isSelected && (
+                  <span className="absolute bottom-1 text-[10px] font-semibold opacity-70">
+                    +{dayEvents.length - 1}
+                  </span>
                 )}
               </button>
             )
@@ -102,82 +145,89 @@ export default function Calendar() {
         </div>
       </section>
 
+      {/* Légende */}
+      <div className="flex items-center gap-md flex-wrap px-sm">
+        {EVENT_KINDS.map((k) => (
+          <div key={k.value} className="flex items-center gap-sm">
+            <span className={`w-3 h-3 rounded-sm ${KIND_BG[k.value].split(' ')[0]}`} />
+            <span className="text-caption text-on-surface-variant">{k.label}</span>
+          </div>
+        ))}
+      </div>
+
       {/* Détail du jour sélectionné */}
       <section className="space-y-sm">
-        <h2 className="h-section text-h3 px-sm">
-          {selected && dateLabel(now, selected)}
+        <h2 className="h-section text-h3 px-sm capitalize">
+          {selectedDate.toLocaleDateString('fr-FR', {
+            weekday: 'long', day: 'numeric', month: 'long',
+          })}
         </h2>
 
-        <div className="card-elevated p-lg space-y-md">
-          <EventRow
-            icon={Car}
-            title="Dépose école"
-            subtitle="Lincoln Elementary"
-            timeLabel="08:00"
-          />
+        {isLoading && (
+          <div className="card p-lg text-center text-on-surface-variant">Chargement…</div>
+        )}
 
-          <div className="h-px bg-outline-variant/40" />
-
-          <div className="flex items-center gap-sm text-on-surface-variant">
-            <ArrowLeftRight size={16} strokeWidth={2} />
-            <span className="text-caption text-secondary">
-              Passage de garde vers le co-parent
-            </span>
+        {!isLoading && eventsOnSelected.length === 0 && (
+          <div className="card p-lg text-center">
+            <div className="h-12 w-12 rounded-full bg-surface-container mx-auto flex items-center justify-center text-on-surface-variant mb-sm">
+              <CalendarIcon size={22} />
+            </div>
+            <p className="text-body-md text-on-surface-variant">
+              Aucun événement ce jour-là.
+            </p>
           </div>
+        )}
 
-          <button className="inline-flex items-center gap-2 text-primary hover:opacity-80 transition-opacity">
-            <PenLine size={18} strokeWidth={2} />
-            <span className="text-label-sm">Ajouter une note pour le co-parent</span>
-          </button>
-        </div>
+        {eventsOnSelected.map((e) => (
+          <article key={e.id} className="card p-md flex gap-md items-start">
+            <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${KIND_BG[e.kind]}`}>
+              <Clock size={18} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-start justify-between gap-2">
+                <h3 className="text-body-md font-semibold text-on-surface">
+                  {e.title}
+                </h3>
+                <span className="pill-neutral whitespace-nowrap">
+                  {KIND_META[e.kind]?.label}
+                </span>
+              </div>
+              <p className="text-caption text-on-surface-variant mt-0.5">
+                {new Date(e.starts_at).toLocaleTimeString('fr-FR', {
+                  hour: '2-digit', minute: '2-digit',
+                })}
+                {' → '}
+                {new Date(e.ends_at).toLocaleTimeString('fr-FR', {
+                  hour: '2-digit', minute: '2-digit',
+                })}
+              </p>
+              {e.description && (
+                <p className="text-body-md text-on-surface-variant mt-sm">
+                  {e.description}
+                </p>
+              )}
+            </div>
+          </article>
+        ))}
       </section>
 
-      {/* CTA ajout événement */}
-      <button className="btn-primary w-full mt-md">
+      {/* CTA */}
+      <button onClick={() => setAddOpen(true)} className="btn-primary w-full">
         <Plus size={18} strokeWidth={2.5} />
         Ajouter un événement
       </button>
 
-      <p className="text-caption text-on-surface-variant/70 text-center mt-sm">
-        Règle : aucun événement ne peut être supprimé. Toute modification est historisée.
+      <p className="text-caption text-on-surface-variant/70 text-center">
+        Règle : les événements ne sont jamais supprimés — ils sont annulés et historisés.
       </p>
+
+      <Modal open={addOpen} onClose={() => setAddOpen(false)} title="Nouvel événement">
+        <AddEventForm
+          initialDate={selectedDate}
+          onSuccess={() => setAddOpen(false)}
+          onCancel={() => setAddOpen(false)}
+        />
+      </Modal>
     </div>
   )
-}
-
-function LegendItem({ color, label }) {
-  return (
-    <div className="flex items-center gap-sm">
-      <span className={`w-3 h-3 rounded-sm ${color}`} />
-      <span className="text-label-sm text-on-surface-variant">{label}</span>
-    </div>
-  )
-}
-
-function EventRow({ icon: Icon, title, subtitle, timeLabel }) {
-  return (
-    <div className="flex gap-md items-start">
-      <div className="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center text-primary flex-shrink-0">
-        <Icon size={20} strokeWidth={2} />
-      </div>
-      <div className="flex-1">
-        <div className="flex justify-between items-start gap-2">
-          <div>
-            <h4 className="text-label-sm text-on-surface font-semibold">{title}</h4>
-            <p className="text-body-md text-on-surface-variant">{subtitle}</p>
-          </div>
-          <span className="pill-primary">{timeLabel}</span>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function dateLabel(now, day) {
-  const d = new Date(now.getFullYear(), now.getMonth(), day)
-  return d.toLocaleDateString('fr-FR', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-  })
 }

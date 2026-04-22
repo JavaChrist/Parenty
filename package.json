@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Organisation parentale partagée, simple et factuelle",
+  "description": "Organisation parentale partagee, simple et factuelle",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -17,8 +17,7 @@
     "sb:deploy:accept": "supabase functions deploy accept-invite",
     "sb:secrets": "supabase secrets list",
     "sb:logs:invite": "supabase functions logs invite-parent --tail",
-    "sb:logs:accept": "supabase functions logs accept-invite --tail",
-    "sb:setup": "npm run sb:login && npm run sb:link && npm run sb:deploy && echo APP_URL secret: run \"npx supabase secrets set APP_URL=http://localhost:5173\""
+    "sb:logs:accept": "supabase functions logs accept-invite --tail"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",
