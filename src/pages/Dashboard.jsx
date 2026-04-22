@@ -7,6 +7,9 @@ import {
   ArrowRight,
   Baby,
   AlertCircle,
+  FileText,
+  Sparkles,
+  ChevronRight,
 } from 'lucide-react'
 import { useAuthStore } from '../stores/authStore'
 import { useExpenses } from '../hooks/useExpenses'
@@ -14,6 +17,15 @@ import { useDocuments } from '../hooks/useDocuments'
 import { useChildren } from '../hooks/useChildren'
 import { useUpcomingEvents } from '../hooks/useEvents'
 import { useFamilyMembers } from '../hooks/useFamilyMembers'
+import { useMyProfile } from '../hooks/useProfile'
+
+function greeting() {
+  const h = new Date().getHours()
+  if (h < 5) return 'Bonne nuit'
+  if (h < 12) return 'Bonjour'
+  if (h < 18) return 'Bon après-midi'
+  return 'Bonsoir'
+}
 
 const KIND_LABELS = {
   custody: 'Garde',
@@ -23,9 +35,39 @@ const KIND_LABELS = {
   other: 'Événement',
 }
 
+const EXPENSE_STATUS_LABELS = {
+  pending: 'En attente',
+  approved: 'Validée',
+  rejected: 'Refusée',
+}
+
+const EXPENSE_STATUS_PILL = {
+  pending: 'pill-warning',
+  approved: 'pill-success',
+  rejected: 'pill-danger',
+}
+
+function timeAgo(isoDate) {
+  const diff = Date.now() - new Date(isoDate).getTime()
+  const min = Math.round(diff / 60000)
+  if (min < 1) return "à l'instant"
+  if (min < 60) return `il y a ${min} min`
+  const h = Math.round(min / 60)
+  if (h < 24) return `il y a ${h} h`
+  const d = Math.round(h / 24)
+  if (d < 7) return `il y a ${d} j`
+  return new Date(isoDate).toLocaleDateString('fr-FR', {
+    day: 'numeric',
+    month: 'short',
+  })
+}
+
 export default function Dashboard() {
   const user = useAuthStore((s) => s.user)
-  const prenom = user?.email?.split('@')[0] ?? 'parent'
+  const { data: myProfile } = useMyProfile()
+  const prenom =
+    myProfile?.first_name?.trim() || user?.email?.split('@')[0] || 'parent'
+  const hello = greeting()
 
   const { data: expenses = [] } = useExpenses()
   const { data: documents = [] } = useDocuments()
@@ -41,13 +83,71 @@ export default function Dashboard() {
   const nextEvent = upcoming[0]
   const coParentCount = members.filter((m) => m.user_id !== user_id).length
 
+  // Feed d'activité unifié : on mélange events/expenses/docs, trié par date desc
+  const feed = [
+    ...expenses.map((e) => ({
+      kind: 'expense',
+      id: `expense-${e.id}`,
+      date: e.created_at ?? e.incurred_on,
+      title: e.description,
+      subtitle: `${(e.amount_cents / 100).toFixed(2)} €`,
+      status: e.status,
+      to: '/expenses',
+    })),
+    ...documents.map((d) => ({
+      kind: 'document',
+      id: `document-${d.id}`,
+      date: d.uploaded_at,
+      title: d.title,
+      subtitle: 'Nouveau document',
+      to: '/documents',
+    })),
+    ...upcoming.slice(0, 5).map((ev) => ({
+      kind: 'event',
+      id: `event-${ev.id}`,
+      date: ev.starts_at,
+      title: ev.title,
+      subtitle: KIND_LABELS[ev.kind] ?? 'Événement',
+      to: '/calendar',
+    })),
+  ]
+    .filter((x) => x.date)
+    .sort((a, b) => new Date(b.date) - new Date(a.date))
+    .slice(0, 5)
+
   return (
     <div className="space-y-lg">
       {/* Salutation */}
       <header className="pt-2">
-        <p className="text-body-md text-on-surface-variant">Bonjour</p>
-        <h1 className="h-title capitalize">{prenom}</h1>
+        <h1 className="h-title">
+          {hello},{' '}
+          <span className="capitalize text-primary">{prenom}</span>
+        </h1>
+        <p className="text-body-md text-on-surface-variant mt-1">
+          Voici ton tableau de bord familial.
+        </p>
       </header>
+
+      {/* Bandeau "Complète ton profil" — uniquement tant que le prénom est vide */}
+      {myProfile && !myProfile.first_name && (
+        <Link
+          to="/profile?edit=personal"
+          className="card-elevated p-md flex items-center gap-md bg-gradient-to-br from-tertiary-fixed to-primary-container/60 hover:shadow-card-hover transition-shadow"
+        >
+          <div className="h-10 w-10 rounded-full bg-white/50 flex items-center justify-center text-primary flex-shrink-0">
+            <Sparkles size={20} strokeWidth={2} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-body-md font-semibold text-on-surface">
+              Complète ton profil
+            </p>
+            <p className="text-caption text-on-surface-variant">
+              Ajoute ton prénom et une photo pour personnaliser l'espace familial.
+            </p>
+          </div>
+          <ChevronRight size={18} className="text-on-surface-variant flex-shrink-0" />
+        </Link>
+      )}
 
       {/* Prochain événement — carte hero */}
       <section className="card-elevated p-lg bg-gradient-to-br from-primary-container to-primary text-on-primary-container">
@@ -141,7 +241,7 @@ export default function Dashboard() {
           )}
         </div>
 
-        {expenses.length === 0 && documents.length === 0 && !nextEvent ? (
+        {feed.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-lg text-center gap-2">
             <div className="h-12 w-12 rounded-full bg-surface-container flex items-center justify-center text-on-surface-variant">
               <AlertCircle size={22} strokeWidth={2} />
@@ -154,32 +254,50 @@ export default function Dashboard() {
             </p>
           </div>
         ) : (
-          <ul className="space-y-sm">
-            {expenses.slice(0, 3).map((e) => (
-              <li
-                key={e.id}
-                className="flex items-center gap-md py-sm border-b last:border-0 border-outline-variant/40"
-              >
-                <div className="h-9 w-9 rounded-full bg-primary-container/20 flex items-center justify-center text-primary">
-                  <Wallet size={16} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-body-md font-semibold text-on-surface truncate">
-                    {e.description}
-                  </p>
-                  <p className="text-caption text-on-surface-variant">
-                    {(e.amount_cents / 100).toFixed(2)} € · {e.status}
-                  </p>
-                </div>
-                <Link to="/expenses" className="text-caption text-primary font-semibold">
-                  Voir
-                </Link>
-              </li>
+          <ul className="divide-y divide-outline-variant/40 -mx-1">
+            {feed.map((item) => (
+              <FeedItem key={item.id} item={item} />
             ))}
           </ul>
         )}
       </section>
     </div>
+  )
+}
+
+const FEED_ICON = {
+  expense: Wallet,
+  document: FileText,
+  event: CalendarDays,
+}
+
+function FeedItem({ item }) {
+  const Icon = FEED_ICON[item.kind]
+  return (
+    <li className="flex items-center gap-md py-sm px-1">
+      <div className="h-9 w-9 rounded-full bg-primary-container/20 flex items-center justify-center text-primary flex-shrink-0">
+        <Icon size={16} strokeWidth={2} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-body-md font-semibold text-on-surface truncate">
+          {item.title}
+        </p>
+        <p className="text-caption text-on-surface-variant">
+          {item.subtitle} · {timeAgo(item.date)}
+        </p>
+      </div>
+      {item.kind === 'expense' && item.status && (
+        <span className={`${EXPENSE_STATUS_PILL[item.status] ?? 'pill-neutral'} flex-shrink-0`}>
+          {EXPENSE_STATUS_LABELS[item.status] ?? item.status}
+        </span>
+      )}
+      <Link
+        to={item.to}
+        className="text-caption text-primary font-semibold flex-shrink-0"
+      >
+        Voir
+      </Link>
+    </li>
   )
 }
 

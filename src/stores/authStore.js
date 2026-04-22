@@ -42,4 +42,13 @@ export const useAuthStore = create((set, get) => ({
     if (error) throw error
     set({ user: null, session: null })
   },
+
+  setUser: (user) => set({ user }),
+
+  refreshUser: async () => {
+    const { data, error } = await supabase.auth.getUser()
+    if (error) throw error
+    set({ user: data.user ?? null })
+    return data.user
+  },
 }))

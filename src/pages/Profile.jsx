@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   User,
   Users,
@@ -12,15 +13,19 @@ import {
   UserPlus,
   Baby,
   Trash2,
+  Lock,
 } from 'lucide-react'
 import { useAuthStore } from '../stores/authStore'
 import { useFamily } from '../hooks/useFamily'
 import { useFamilyMembers } from '../hooks/useFamilyMembers'
 import { useChildren } from '../hooks/useChildren'
 import { useRemoveChild } from '../hooks/useChildrenMutations'
+import { useMyProfile, useProfiles, getAvatarUrl } from '../hooks/useProfile'
 import Modal from '../components/ui/Modal'
 import AddChildForm from '../components/profile/AddChildForm'
 import InviteCoParentForm from '../components/profile/InviteCoParentForm'
+import PersonalInfoForm from '../components/profile/PersonalInfoForm'
+import ChangePasswordForm from '../components/profile/ChangePasswordForm'
 
 export default function Profile() {
   const user = useAuthStore((s) => s.user)
@@ -29,16 +34,36 @@ export default function Profile() {
   const { data: members = [] } = useFamilyMembers()
   const { data: children = [] } = useChildren()
   const removeChild = useRemoveChild()
+  const { data: myProfile } = useMyProfile()
 
   const [addChildOpen, setAddChildOpen] = useState(false)
   const [inviteOpen, setInviteOpen] = useState(false)
+  const [personalInfoOpen, setPersonalInfoOpen] = useState(false)
+  const [passwordOpen, setPasswordOpen] = useState(false)
 
-  const initial = (user?.email?.[0] ?? 'P').toUpperCase()
-  const prenom = user?.email?.split('@')[0] ?? 'Parent'
+  // Deep-link : /profile?edit=personal ouvre directement la modale d'édition
+  const [searchParams, setSearchParams] = useSearchParams()
+  useEffect(() => {
+    if (searchParams.get('edit') === 'personal') {
+      setPersonalInfoOpen(true)
+      searchParams.delete('edit')
+      setSearchParams(searchParams, { replace: true })
+    }
+  }, [searchParams, setSearchParams])
+
+  const prenom = myProfile?.first_name?.trim() || user?.email?.split('@')[0] || 'Parent'
+  const nomComplet =
+    [myProfile?.first_name, myProfile?.last_name].filter(Boolean).join(' ').trim() || prenom
+  const initial = (myProfile?.first_name?.[0] ?? user?.email?.[0] ?? 'P').toUpperCase()
+  const avatarUrl = getAvatarUrl(myProfile?.avatar_path, myProfile?.updated_at)
+
   const family = familyData?.family
   const myRole = familyData?.familyMember?.role
   const otherMembers = members.filter((m) => m.user_id !== user?.id)
   const hasCoParent = otherMembers.length > 0
+
+  const coParentIds = otherMembers.map((m) => m.user_id)
+  const { data: coParentProfiles = {} } = useProfiles(coParentIds)
 
   return (
     <div className="space-y-lg">
@@ -48,11 +73,18 @@ export default function Profile() {
 
       {/* Identité */}
       <section className="card-elevated p-lg flex flex-col items-center text-center">
-        <div className="h-20 w-20 rounded-full bg-primary-container flex items-center justify-center text-on-primary-container font-display text-h2 font-bold">
-          {initial}
+        <div className="h-20 w-20 rounded-full overflow-hidden bg-primary-container flex items-center justify-center text-on-primary-container font-display text-h2 font-bold">
+          {avatarUrl ? (
+            <img src={avatarUrl} alt={nomComplet} className="h-full w-full object-cover" />
+          ) : (
+            initial
+          )}
         </div>
-        <h2 className="h-section text-h3 mt-md capitalize">{prenom}</h2>
+        <h2 className="h-section text-h3 mt-md capitalize">{nomComplet}</h2>
         <p className="text-body-md text-on-surface-variant">{user?.email}</p>
+        {myProfile?.phone && (
+          <p className="text-caption text-on-surface-variant mt-0.5">{myProfile.phone}</p>
+        )}
         {family && (
           <span className="pill-primary mt-sm">
             {family.name} · {myRole === 'owner' ? 'Owner' : 'Parent'}
@@ -122,23 +154,36 @@ export default function Profile() {
         </h2>
         <div className="card p-md">
           {hasCoParent ? (
-            otherMembers.map((m) => (
-              <div key={m.id} className="flex items-center gap-md">
-                <div className="h-11 w-11 rounded-full bg-primary-container flex items-center justify-center text-on-primary-container font-semibold">
-                  <Users size={20} />
+            otherMembers.map((m) => {
+              const p = coParentProfiles[m.user_id]
+              const coName =
+                [p?.first_name, p?.last_name].filter(Boolean).join(' ').trim() || 'Co-parent'
+              const coAvatar = getAvatarUrl(p?.avatar_path, p?.updated_at)
+              const coInitial = (p?.first_name?.[0] ?? 'C').toUpperCase()
+              return (
+                <div key={m.id} className="flex items-center gap-md">
+                  <div className="h-11 w-11 rounded-full overflow-hidden bg-primary-container flex items-center justify-center text-on-primary-container font-semibold">
+                    {coAvatar ? (
+                      <img src={coAvatar} alt={coName} className="h-full w-full object-cover" />
+                    ) : p?.first_name ? (
+                      coInitial
+                    ) : (
+                      <Users size={20} />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-body-md font-semibold text-on-surface truncate">
+                      {coName}
+                    </p>
+                    <p className="text-caption text-on-surface-variant">
+                      Membre depuis le{' '}
+                      {new Date(m.joined_at).toLocaleDateString('fr-FR')}
+                    </p>
+                  </div>
+                  <span className="pill-primary">Actif</span>
                 </div>
-                <div className="flex-1">
-                  <p className="text-body-md font-semibold text-on-surface">
-                    Co-parent
-                  </p>
-                  <p className="text-caption text-on-surface-variant">
-                    Membre depuis le{' '}
-                    {new Date(m.joined_at).toLocaleDateString('fr-FR')}
-                  </p>
-                </div>
-                <span className="pill-primary">Actif</span>
-              </div>
-            ))
+              )
+            })
           ) : (
             <button
               onClick={() => setInviteOpen(true)}
@@ -167,7 +212,16 @@ export default function Profile() {
           Compte
         </h2>
         <div className="card divide-y divide-outline-variant/40">
-          <SettingRow icon={User} label="Informations personnelles" />
+          <SettingRow
+            icon={User}
+            label="Informations personnelles"
+            onClick={() => setPersonalInfoOpen(true)}
+          />
+          <SettingRow
+            icon={Lock}
+            label="Mot de passe"
+            onClick={() => setPasswordOpen(true)}
+          />
           <SettingRow icon={Bell} label="Notifications" hint="À venir" />
         </div>
       </section>
@@ -227,6 +281,28 @@ export default function Profile() {
 
       <Modal open={inviteOpen} onClose={() => setInviteOpen(false)} title="Inviter le co-parent">
         <InviteCoParentForm onCancel={() => setInviteOpen(false)} />
+      </Modal>
+
+      <Modal
+        open={personalInfoOpen}
+        onClose={() => setPersonalInfoOpen(false)}
+        title="Informations personnelles"
+      >
+        <PersonalInfoForm
+          onSuccess={() => setPersonalInfoOpen(false)}
+          onCancel={() => setPersonalInfoOpen(false)}
+        />
+      </Modal>
+
+      <Modal
+        open={passwordOpen}
+        onClose={() => setPasswordOpen(false)}
+        title="Changer de mot de passe"
+      >
+        <ChangePasswordForm
+          onSuccess={() => setPasswordOpen(false)}
+          onCancel={() => setPasswordOpen(false)}
+        />
       </Modal>
     </div>
   )
