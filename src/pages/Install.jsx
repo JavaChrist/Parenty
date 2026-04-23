@@ -1,11 +1,10 @@
-import { useMemo, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { QRCodeSVG } from 'qrcode.react'
 import {
   ArrowLeft,
   Smartphone,
   Apple,
-  Download,
   Share2,
   Printer,
   Check,
@@ -14,13 +13,17 @@ import {
 
 /**
  * Page publique d'installation — sert à la fois de page web partageable et de
- * flyer imprimable. Contient un QR code qui pointe vers la racine de l'app et
- * deux notices pas-à-pas (Android / iOS) adaptées aux deux navigateurs
- * d'installation "officiels" : Chrome et Safari.
+ * flyer imprimable A4. Contient un QR code qui pointe vers la racine de l'app
+ * et deux notices pas-à-pas (Android / iOS).
  *
- * Volontairement accessible sans authentification (route publique) : c'est le
- * point d'entrée pour quelqu'un qui reçoit l'appli par mail, par QR code sur
- * un flyer, par un lien dans une signature mail, etc.
+ * Layout print optimisé pour tenir sur UNE seule page A4 :
+ *   - @page définit une marge raisonnable (1 cm)
+ *   - notices Android + iOS forcées en 2 colonnes
+ *   - header, boutons et éléments "web" masqués
+ *   - signature JavaChrist en pied de page
+ *
+ * Route publique (pas d'authentification) : c'est le point d'entrée pour
+ * quelqu'un qui reçoit l'appli par mail, QR code, signature mail, etc.
  */
 export default function Install() {
   // L'URL partagée via QR doit TOUJOURS être joignable depuis un autre appareil.
@@ -43,8 +46,13 @@ export default function Install() {
     if (envUrl) return envUrl.endsWith('/') ? envUrl : `${envUrl}/`
     return fallback
   }, [])
+
+  const prettyUrl = useMemo(
+    () => installUrl.replace(/^https?:\/\//, '').replace(/\/$/, ''),
+    [installUrl]
+  )
+
   const [copied, setCopied] = useState(false)
-  const printRef = useRef(null)
 
   const handleCopy = async () => {
     try {
@@ -78,6 +86,23 @@ export default function Install() {
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Règles d'impression A4 compactes — marges serrées pour tenir en 1 page.
+          Le layout print est en flex column avec min-height = hauteur A4 utile,
+          pour que la signature JavaChrist soit poussée en bas (mt-auto). */}
+      <style>{`
+        @media print {
+          @page { size: A4; margin: 12mm 14mm; }
+          html, body { background: white !important; }
+          .page-print {
+            max-width: 100% !important;
+            min-height: calc(297mm - 24mm);
+            display: flex;
+            flex-direction: column;
+          }
+          .page-print > footer { margin-top: auto; }
+        }
+      `}</style>
+
       {/* Header — masqué à l'impression */}
       <header className="sticky top-0 z-40 bg-surface-container-lowest/90 backdrop-blur-md border-b border-outline-variant/40 print:hidden">
         <div className="max-w-3xl mx-auto flex items-center gap-md px-4 h-16">
@@ -104,58 +129,66 @@ export default function Install() {
         </div>
       </header>
 
-      <main ref={printRef} className="max-w-3xl mx-auto px-4 py-8 print:py-4">
-        {/* Bloc QR code — toujours affiché, premier à l'impression */}
-        <section className="card-elevated p-lg md:p-xl flex flex-col md:flex-row items-center gap-lg print:shadow-none print:border print:border-outline-variant">
-          <div className="flex-shrink-0 bg-white p-4 rounded-xl border border-outline-variant">
+      <main className="page-print max-w-3xl mx-auto px-4 py-8 print:py-0 print:px-0">
+        {/* Bloc QR code — titre Parenty au-dessus, QR centré, URL en dessous */}
+        <section className="card-elevated p-lg md:p-xl flex flex-col items-center gap-md print:p-4 print:gap-2 print:shadow-none print:border print:border-outline-variant print:rounded-lg">
+          <div className="flex items-center gap-2 print:gap-2">
+            <img
+              src="/icons/logo64.png"
+              alt=""
+              className="h-12 w-12 rounded-lg print:h-10 print:w-10"
+              width="48"
+              height="48"
+            />
+            <p className="font-display text-display text-primary font-extrabold leading-none print:text-3xl">
+              Parenty
+            </p>
+          </div>
+
+          <p className="text-body-md text-on-surface-variant text-center print:text-sm">
+            Organisation parentale partagée, simple et factuelle.
+          </p>
+
+          <div className="flex-shrink-0 bg-white p-4 rounded-xl border border-outline-variant print:p-2">
             <QRCodeSVG
               value={installUrl}
-              size={192}
+              size={180}
               level="M"
               includeMargin={false}
               imageSettings={{
                 src: '/icons/logo96.png',
-                height: 40,
-                width: 40,
+                height: 36,
+                width: 36,
                 excavate: true,
               }}
             />
           </div>
 
-          <div className="text-center md:text-left space-y-sm flex-1 min-w-0">
-            <div className="flex items-center gap-2 justify-center md:justify-start">
-              <img
-                src="/icons/logo64.png"
-                alt=""
-                className="h-10 w-10 rounded-lg"
-                width="40"
-                height="40"
-              />
-              <p className="font-display text-display text-primary font-extrabold leading-none">
-                Parenty
-              </p>
-            </div>
-            <p className="text-body-lg text-on-surface-variant">
-              Scanne ce QR code pour installer l'application sur ton téléphone.
-            </p>
-            <div className="flex items-center gap-2 justify-center md:justify-start pt-2 print:hidden">
-              <code className="text-caption text-on-surface-variant bg-surface-container-low px-2 py-1 rounded-md truncate max-w-full">
-                {installUrl}
-              </code>
-              <button
-                type="button"
-                onClick={handleCopy}
-                className="p-2 rounded-full hover:bg-surface-container-low transition-colors text-on-surface-variant flex-shrink-0"
-                aria-label="Copier le lien"
-                title={copied ? 'Copié' : 'Copier le lien'}
-              >
-                {copied ? (
-                  <Check size={16} className="text-primary" />
-                ) : (
-                  <Copy size={16} />
-                )}
-              </button>
-            </div>
+          <p className="text-body-md text-on-surface-variant text-center max-w-md print:text-sm">
+            Scanne ce QR code pour installer l'application sur ton téléphone.
+          </p>
+          <p className="hidden print:block text-xs text-on-surface-variant text-center">
+            Ou ouvre directement :{' '}
+            <span className="font-semibold text-on-surface">{prettyUrl}</span>
+          </p>
+
+          <div className="flex items-center gap-2 justify-center print:hidden">
+            <code className="text-caption text-on-surface-variant bg-surface-container-low px-2 py-1 rounded-md truncate max-w-full">
+              {installUrl}
+            </code>
+            <button
+              type="button"
+              onClick={handleCopy}
+              className="p-2 rounded-full hover:bg-surface-container-low transition-colors text-on-surface-variant flex-shrink-0"
+              aria-label="Copier le lien"
+              title={copied ? 'Copié' : 'Copier le lien'}
+            >
+              {copied ? (
+                <Check size={16} className="text-primary" />
+              ) : (
+                <Copy size={16} />
+              )}
+            </button>
           </div>
         </section>
 
@@ -179,11 +212,13 @@ export default function Install() {
           </button>
         </div>
 
-        {/* Notices d'installation */}
-        <section className="mt-xl space-y-lg">
-          <h2 className="h-title text-center">Comment installer Parenty ?</h2>
+        {/* Notices d'installation — forcées en 2 colonnes à l'impression */}
+        <section className="mt-xl space-y-lg print:mt-4 print:space-y-2">
+          <h2 className="h-title text-center print:text-base print:font-bold print:mb-1">
+            Comment installer Parenty ?
+          </h2>
 
-          <div className="grid md:grid-cols-2 gap-lg">
+          <div className="grid md:grid-cols-2 gap-lg print:grid-cols-2 print:gap-3">
             <InstallGuide
               icon={<Smartphone size={28} strokeWidth={2.2} />}
               title="Sur Android"
@@ -192,21 +227,20 @@ export default function Install() {
                 <>
                   Ouvre <strong>Chrome</strong> et va sur{' '}
                   <code className="bg-surface-container-low px-1.5 py-0.5 rounded text-caption">
-                    parenty.vercel.app
+                    {prettyUrl}
                   </code>
                 </>,
                 <>
                   Tape les <strong>⋮ trois points</strong> en haut à droite,
-                  puis <strong>« Installer l'application »</strong> (ou
-                  <strong> « Ajouter à l'écran d'accueil »</strong>).
+                  puis <strong>« Installer l'application »</strong>.
                 </>,
                 <>
-                  Confirme avec <strong>Installer</strong>. L'icône Parenty
-                  apparaît sur ton écran d'accueil.
+                  Confirme avec <strong>Installer</strong>. L'icône apparaît
+                  sur l'écran d'accueil.
                 </>,
                 <>
-                  Utilise <strong>l'icône</strong> à partir de maintenant, pas
-                  le navigateur.
+                  Utilise <strong>l'icône</strong> désormais, pas le
+                  navigateur.
                 </>,
               ]}
             />
@@ -217,15 +251,14 @@ export default function Install() {
               subtitle="avec Safari"
               steps={[
                 <>
-                  Ouvre <strong>Safari</strong> (pas Chrome sur iOS, Apple
-                  réserve l'installation à Safari) et va sur{' '}
+                  Ouvre <strong>Safari</strong> (pas Chrome sur iOS) et va sur{' '}
                   <code className="bg-surface-container-low px-1.5 py-0.5 rounded text-caption">
-                    parenty.vercel.app
+                    {prettyUrl}
                   </code>
                 </>,
                 <>
-                  Tape le bouton <strong>Partager</strong> (carré avec flèche
-                  vers le haut) en bas de l'écran.
+                  Tape le bouton <strong>Partager</strong> (carré + flèche vers
+                  le haut) en bas.
                 </>,
                 <>
                   Fais défiler et choisis{' '}
@@ -233,17 +266,17 @@ export default function Install() {
                 </>,
                 <>
                   Confirme avec <strong>Ajouter</strong>. L'icône apparaît sur
-                  ton écran d'accueil.
+                  l'écran d'accueil.
                 </>,
               ]}
             />
           </div>
         </section>
 
-        {/* Bloc rassurant */}
-        <section className="mt-xl card-flat p-lg space-y-sm text-body-md text-on-surface-variant print:mt-lg print:shadow-none print:border print:border-outline-variant">
-          <div className="flex items-center gap-2 text-on-surface font-semibold">
-            <Download size={18} className="text-primary" />
+        {/* Bloc rassurant — web & print (compact à l'impression) */}
+        <section className="mt-xl card-flat p-lg space-y-sm text-body-md text-on-surface-variant print:mt-3 print:p-3 print:shadow-none print:border print:border-outline-variant print:rounded-md print:space-y-1 print:text-[11px] print:leading-snug">
+          <div className="flex items-center gap-2 text-on-surface font-semibold print:text-xs">
+            <span className="h-2 w-2 rounded-full bg-primary print:h-1.5 print:w-1.5" />
             <span>Pas d'App Store, pas de téléchargement</span>
           </div>
           <p>
@@ -253,7 +286,7 @@ export default function Install() {
             application : icône sur l'écran d'accueil, ouverture en plein
             écran, fonctionne même sans réseau pour les données déjà chargées.
           </p>
-          <p>
+          <p className="print:hidden">
             Tes données sont hébergées en Europe (Francfort) et chiffrées au
             repos. Pour en savoir plus, consulte la{' '}
             <Link
@@ -264,19 +297,62 @@ export default function Install() {
             </Link>
             .
           </p>
+          <p className="hidden print:block">
+            Données hébergées en Europe (Francfort), chiffrées au repos — RGPD.
+          </p>
         </section>
 
-        {/* Footer imprimable */}
-        <footer className="mt-xl pt-lg border-t border-outline-variant/40 text-center text-caption text-on-surface-variant space-y-1 print:mt-lg">
-          <p className="font-semibold text-on-surface">
-            Parenty — {installUrl.replace(/^https?:\/\//, '').replace(/\/$/, '')}
-          </p>
-          <p>Organisation parentale partagée, simple et factuelle.</p>
-          <p className="print:hidden">
-            <Link to="/" className="text-primary font-semibold hover:underline">
-              Retour à Parenty
-            </Link>
-          </p>
+        {/* Footer / signature JavaChrist — mode print compact */}
+        <footer className="mt-xl pt-lg border-t border-outline-variant/40 print:mt-4 print:pt-3 print:border-outline-variant">
+          {/* Version web (visible à l'écran uniquement) */}
+          <div className="text-center text-caption text-on-surface-variant space-y-1 print:hidden">
+            <p className="font-semibold text-on-surface">
+              Parenty — {prettyUrl}
+            </p>
+            <p>Organisation parentale partagée, simple et factuelle.</p>
+            <p className="pt-sm">
+              <Link
+                to="/"
+                className="text-primary font-semibold hover:underline"
+              >
+                Retour à Parenty
+              </Link>
+            </p>
+          </div>
+
+          {/* Version print : signature JavaChrist compacte */}
+          <div className="hidden print:flex items-center justify-between gap-md text-xs">
+            <div className="flex items-center gap-2">
+              <img
+                src="/icons/javachrist.png"
+                alt="JavaChrist"
+                className="h-8 w-8"
+                width="32"
+                height="32"
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none'
+                }}
+              />
+              <div className="leading-tight">
+                <p className="font-bold text-on-surface">JavaChrist</p>
+                <p className="text-on-surface-variant">
+                  Christian Grohens — Autoentrepreneur
+                </p>
+              </div>
+            </div>
+            <div className="text-right leading-tight text-on-surface-variant">
+              <p className="font-semibold text-on-surface">{prettyUrl}</p>
+              <p>
+                <a
+                  href="mailto:support@javachrist.fr"
+                  className="text-on-surface-variant"
+                >
+                  support@javachrist.fr
+                </a>
+                {' · '}javachrist.fr
+              </p>
+            </div>
+          </div>
         </footer>
       </main>
     </div>
@@ -285,25 +361,30 @@ export default function Install() {
 
 function InstallGuide({ icon, title, subtitle, steps }) {
   return (
-    <div className="card p-lg space-y-md print:shadow-none print:border print:border-outline-variant">
-      <div className="flex items-center gap-md">
-        <div className="h-11 w-11 rounded-full bg-primary/10 text-primary flex items-center justify-center flex-shrink-0">
-          {icon}
+    <div className="card p-lg space-y-md print:shadow-none print:border print:border-outline-variant print:p-3 print:space-y-2 print:rounded-md">
+      <div className="flex items-center gap-md print:gap-2">
+        <div className="h-11 w-11 rounded-full bg-primary/10 text-primary flex items-center justify-center flex-shrink-0 print:h-8 print:w-8">
+          <span className="print:scale-75">{icon}</span>
         </div>
         <div>
-          <h3 className="text-h3 font-semibold text-on-surface leading-tight">
+          <h3 className="text-h3 font-semibold text-on-surface leading-tight print:text-sm">
             {title}
           </h3>
-          <p className="text-caption text-on-surface-variant">{subtitle}</p>
+          <p className="text-caption text-on-surface-variant print:text-[10px]">
+            {subtitle}
+          </p>
         </div>
       </div>
-      <ol className="space-y-sm">
+      <ol className="space-y-sm print:space-y-1">
         {steps.map((step, i) => (
-          <li key={i} className="flex items-start gap-md text-body-md">
-            <span className="flex-shrink-0 h-6 w-6 rounded-full bg-primary-container text-on-primary-container text-label-sm font-bold flex items-center justify-center">
+          <li
+            key={i}
+            className="flex items-start gap-md text-body-md print:gap-2 print:text-[11px] print:leading-snug"
+          >
+            <span className="flex-shrink-0 h-6 w-6 rounded-full bg-primary-container text-on-primary-container text-label-sm font-bold flex items-center justify-center print:h-4 print:w-4 print:text-[9px]">
               {i + 1}
             </span>
-            <span className="text-on-surface-variant pt-0.5 leading-relaxed">
+            <span className="text-on-surface-variant pt-0.5 leading-relaxed print:pt-0 print:leading-snug">
               {step}
             </span>
           </li>
