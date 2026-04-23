@@ -85,6 +85,15 @@ export default function SignIn() {
             {loading ? 'Connexion…' : 'Se connecter'}
           </button>
 
+          <p className="text-body-md text-center">
+            <Link
+              to="/forgot-password"
+              className="text-primary font-semibold hover:underline"
+            >
+              Mot de passe oublié ?
+            </Link>
+          </p>
+
           <p className="text-body-md text-center text-on-surface-variant">
             Pas encore de compte ?{' '}
             <Link to="/signup" className="text-primary font-semibold">Créer un compte</Link>

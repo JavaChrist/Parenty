@@ -21,6 +21,8 @@ import Chat from './pages/Chat'
 import Profile from './pages/Profile'
 import History from './pages/History'
 import Install from './pages/Install'
+import ForgotPassword from './pages/ForgotPassword'
+import ResetPassword from './pages/ResetPassword'
 import MentionsLegales from './pages/legal/MentionsLegales'
 import Privacy from './pages/legal/Privacy'
 import CGU from './pages/legal/CGU'
@@ -82,6 +84,8 @@ export default function App() {
       {/* Routes publiques */}
       <Route path="/signin" element={<SignIn />} />
       <Route path="/signup" element={<SignUp />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/invite" element={<AcceptInvite />} />
 
       {/* Pages légales — accessibles sans authentification (LCEN/RGPD) */}
