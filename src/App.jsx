@@ -1,10 +1,11 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthStore } from './stores/authStore'
 import ProtectedRoute from './components/layout/ProtectedRoute'
 import RequireFamily from './components/layout/RequireFamily'
 import AppLayout from './components/layout/AppLayout'
 import UpdatePrompt from './components/layout/UpdatePrompt'
+import { resetApp } from './lib/resetApp'
 
 // Pages
 import SignIn from './pages/SignIn'
@@ -27,14 +28,25 @@ import CGV from './pages/legal/CGV'
 export default function App() {
   const init = useAuthStore((s) => s.init)
   const loading = useAuthStore((s) => s.loading)
+  const [showRescue, setShowRescue] = useState(false)
 
   useEffect(() => {
     init()
   }, [init])
 
+  // Si on reste bloqué > 5 s sur le splash (SW corrompu, réseau KO, Supabase
+  // injoignable…), on propose à l'utilisateur de réinitialiser l'appli
+  // (unregister SW + clear caches + reload). Sans ça, une PWA installée peut
+  // rester coincée indéfiniment sur "Chargement…".
+  useEffect(() => {
+    if (!loading) return
+    const t = setTimeout(() => setShowRescue(true), 5000)
+    return () => clearTimeout(t)
+  }, [loading])
+
   if (loading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-md bg-background">
+      <div className="min-h-screen flex flex-col items-center justify-center gap-md bg-background px-4">
         <img
           src="/icons/logo128.png"
           alt="Parenty"
@@ -43,6 +55,21 @@ export default function App() {
           height="80"
         />
         <div className="text-on-surface-variant">Chargement…</div>
+        {showRescue && (
+          <div className="mt-lg max-w-sm text-center space-y-sm">
+            <p className="text-caption text-on-surface-variant">
+              Le chargement prend plus de temps que prévu. Si le problème
+              persiste, tu peux réinitialiser l'appli (tu seras déconnecté·e).
+            </p>
+            <button
+              type="button"
+              onClick={resetApp}
+              className="btn-secondary !py-2 !text-label-sm"
+            >
+              Réinitialiser l'appli
+            </button>
+          </div>
+        )}
       </div>
     )
   }

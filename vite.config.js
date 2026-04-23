@@ -75,19 +75,14 @@ export default defineConfig({
         // Purge les anciens caches générés par les builds précédents —
         // sinon on accumule MBo sur l'appareil de l'utilisateur.
         cleanupOutdatedCaches: true,
-        runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'supabase-cache',
-              expiration: {
-                maxEntries: 50,
-                maxAgeSeconds: 60 * 60 * 24, // 1 jour
-              },
-            },
-          },
-        ],
+        // ⚠️ NE JAMAIS cacher les requêtes Supabase ici :
+        // /auth/v1/* → JWT périmés servis depuis le cache → auth.uid() null côté
+        //              Postgres → toutes les RLS échouent silencieusement.
+        // /rest/v1/* → données d'un autre user potentiellement servies depuis
+        //              le cache après un signOut / switch de compte.
+        // Laissons le navigateur faire son cache HTTP standard (respecte les
+        // headers Cache-Control envoyés par Supabase, qui sont corrects).
+        navigateFallbackDenylist: [/^\/rest\/v1/, /^\/auth\/v1/, /^\/storage\/v1/, /^\/realtime\/v1/],
       },
     }),
   ],

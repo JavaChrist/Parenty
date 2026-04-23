@@ -25,19 +25,24 @@ export default function OnboardingChild() {
         throw new Error('Aucune session active. Reconnecte-toi.')
       }
 
-      const { data: family, error: familyError } = await supabase
-        .from('families')
-        .insert({ name: `Famille de ${user.email.split('@')[0]}` })
-        .select()
-        .single()
-      if (familyError) throw familyError
-
-      const { error: childError } = await supabase.from('children').insert({
-        family_id: family.id,
-        first_name: firstName,
-        birth_date: birthDate,
-      })
-      if (childError) throw childError
+      // Appel d'une RPC SECURITY DEFINER qui crée famille + enfant en une
+      // seule transaction côté Postgres. On évite ainsi les pièges RLS
+      // côté client (JWT mal transmis, cache SW, session pas encore
+      // synchronisée…) qui bloquaient certains utilisateurs sur un
+      // "row-level security policy for table families".
+      const emailLocal = user?.email?.split('@')[0] ?? 'moi'
+      const { data: familyId, error: rpcError } = await supabase.rpc(
+        'bootstrap_family',
+        {
+          p_family_name: `Famille de ${emailLocal}`,
+          p_child_first_name: firstName,
+          p_child_birth_date: birthDate,
+        }
+      )
+      if (rpcError) throw rpcError
+      if (!familyId) {
+        throw new Error('Aucune famille renvoyée par le serveur.')
+      }
 
       await queryClient.invalidateQueries({ queryKey: ['family'] })
       await queryClient.invalidateQueries({ queryKey: ['children'] })
