@@ -34,17 +34,30 @@
     <div id="root"></div>
     <script>
       // Password recovery guard (runs BEFORE any module loads).
-      // Supabase JS, avec detectSessionInUrl:true, consomme le hash
-      // #access_token=...&type=recovery dès la création du client, crée une
-      // session normale et efface le hash. L'utilisateur se retrouve connecté
-      // au dashboard sans pouvoir changer son mot de passe.
-      // On intercepte ici, avant tout script de module, pour forcer la
-      // redirection vers /reset-password en préservant le hash.
+      //
+      // Deux cas à intercepter avant que le SDK Supabase ne parse l'URL :
+      //
+      //   1. Token valide   → #access_token=...&type=recovery&...
+      //      Le SDK consommerait le hash, créerait une session "normale" et
+      //      l'utilisateur se retrouverait au Dashboard sans pouvoir changer
+      //      son mot de passe.
+      //
+      //   2. Lien déjà utilisé / expiré → #error=access_denied&error_code=otp_expired
+      //      Sans session valide, ProtectedRoute renvoie l'utilisateur sur
+      //      /signin sans lui expliquer ce qui s'est passé.
+      //
+      // Dans les deux cas on force /reset-password, qui affiche soit le
+      // formulaire, soit un message "Lien invalide ou expiré" clair.
       (function () {
         try {
           var h = window.location.hash || '';
           var p = window.location.pathname || '/';
-          if (h.indexOf('type=recovery') !== -1 && p !== '/reset-password') {
+          var isRecoveryToken = h.indexOf('type=recovery') !== -1;
+          var isRecoveryError =
+            h.indexOf('error') !== -1 &&
+            (h.indexOf('otp_expired') !== -1 ||
+              h.indexOf('access_denied') !== -1);
+          if ((isRecoveryToken || isRecoveryError) && p !== '/reset-password') {
             window.location.replace('/reset-password' + window.location.search + h);
           }
         } catch (e) {}
