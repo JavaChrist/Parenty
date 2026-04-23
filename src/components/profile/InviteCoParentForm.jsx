@@ -34,29 +34,40 @@ export default function InviteCoParentForm({ onCancel }) {
   if (result) {
     return (
       <div className="space-y-md">
-        <p className="text-body-md text-on-surface">
-          Invitation créée pour <strong>{result.invitation.email}</strong>.
-        </p>
-        <p className="text-body-md text-on-surface-variant">
-          Envoie-lui ce lien (par SMS, email, WhatsApp…) pour qu'il rejoigne la famille :
-        </p>
+        {result.emailSent ? (
+          <p className="text-body-md text-on-surface">
+            Invitation envoyée à <strong>{result.email}</strong>. Un email avec
+            un lien pour rejoindre la famille vient d'être adressé à cette
+            personne.
+          </p>
+        ) : (
+          <>
+            <p className="text-body-md text-on-surface">
+              Invitation créée pour <strong>{result.email}</strong>.
+            </p>
+            <p className="text-body-md text-on-surface-variant">
+              L'email n'a pas pu être envoyé automatiquement. Envoie-lui ce lien
+              (par SMS, email, WhatsApp…) pour qu'il rejoigne la famille&nbsp;:
+            </p>
 
-        <div className="flex items-stretch gap-sm">
-          <input
-            readOnly
-            value={result.inviteUrl}
-            className="input font-mono text-caption"
-            onFocus={(e) => e.target.select()}
-          />
-          <button
-            type="button"
-            onClick={copy}
-            className="btn-primary px-4"
-            aria-label="Copier le lien"
-          >
-            {copied ? <Check size={18} /> : <Copy size={18} />}
-          </button>
-        </div>
+            <div className="flex items-stretch gap-sm">
+              <input
+                readOnly
+                value={result.inviteUrl}
+                className="input font-mono text-caption"
+                onFocus={(e) => e.target.select()}
+              />
+              <button
+                type="button"
+                onClick={copy}
+                className="btn-primary px-4"
+                aria-label="Copier le lien"
+              >
+                {copied ? <Check size={18} /> : <Copy size={18} />}
+              </button>
+            </div>
+          </>
+        )}
 
         <p className="text-caption text-on-surface-variant">
           Valide 7 jours. Le lien n'est utilisable qu'une seule fois.

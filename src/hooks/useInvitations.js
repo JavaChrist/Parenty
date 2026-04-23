@@ -54,9 +54,17 @@ export function useInvitations() {
 }
 
 /**
- * Crée une invitation en base (RLS autorise car family member).
- * Le token est généré par défaut côté base.
- * Renvoie l'invitation créée avec son inviteUrl calculée côté client.
+ * Invite un co-parent via la fonction Edge `invite-parent`, qui :
+ *   - crée (ou ré-utilise) l'invitation en base
+ *   - envoie un email brandé Parenty via Resend (si RESEND_API_KEY défini)
+ *
+ * Renvoie :
+ *   {
+ *     email,                     // l'adresse invitée
+ *     inviteUrl,                 // lien direct (utile si email non envoyé)
+ *     emailSent: boolean,        // true = mail parti chez Resend
+ *     warning?: string,          // message explicatif si emailSent=false
+ *   }
  */
 export function useInviteCoParent() {
   const qc = useQueryClient()
@@ -69,21 +77,29 @@ export function useInviteCoParent() {
       const trimmed = email?.trim().toLowerCase()
       if (!trimmed) throw new Error('Email requis')
 
-      const { data, error } = await supabase
-        .from('invitations')
-        .insert({
-          family_id: familyId,
-          email: trimmed,
-          invited_by: user.id,
-        })
-        .select()
-        .single()
+      const { data, error } = await supabase.functions.invoke('invite-parent', {
+        body: { email: trimmed },
+      })
 
-      if (error) throw error
+      if (error) {
+        const realMessage = await extractFunctionErrorMessage(error)
+        throw new Error(
+          realMessage || error.message || "Échec de l'envoi de l'invitation.",
+        )
+      }
+      if (data?.error) throw new Error(data.error)
 
-      const inviteUrl = `${getAppBaseUrl()}/invite?token=${data.token}`
+      // Fallback inviteUrl au cas où la fonction n'en renverrait pas (ancien
+      // déploiement, réseau intermittent…) : on la recalcule côté client.
+      const inviteUrl =
+        data?.inviteUrl || `${getAppBaseUrl()}/invite?token=${data?.token ?? ''}`
 
-      return { invitation: data, inviteUrl }
+      return {
+        email: trimmed,
+        inviteUrl,
+        emailSent: !!data?.emailSent,
+        warning: data?.warning,
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['invitations', familyId] })
