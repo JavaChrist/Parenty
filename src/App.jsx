@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useAuthStore } from './stores/authStore'
+import { supabase } from './lib/supabase'
 import ProtectedRoute from './components/layout/ProtectedRoute'
 import RequireFamily from './components/layout/RequireFamily'
 import AppLayout from './components/layout/AppLayout'
@@ -80,6 +81,7 @@ export default function App() {
   return (
     <>
       <UpdatePrompt />
+      <PasswordRecoveryGuard />
       <Routes>
       {/* Routes publiques */}
       <Route path="/signin" element={<SignIn />} />
@@ -121,4 +123,33 @@ export default function App() {
       </Routes>
     </>
   )
+}
+
+/**
+ * Garde globale qui détecte les liens de récupération de mot de passe.
+ *
+ * Quand l'utilisateur clique le lien du mail "mot de passe oublié", Supabase
+ * le renvoie sur la Site URL si la Redirect URL n'est pas dans l'allowlist, ou
+ * s'il arrive depuis un ancien client qui ne passe pas `redirectTo`. Dans ce
+ * cas il se retrouverait connecté sur le Dashboard sans pouvoir changer son
+ * mot de passe. Ce composant écoute l'event `PASSWORD_RECOVERY` au niveau
+ * racine et force la redirection vers `/reset-password`.
+ *
+ * Il doit être monté À L'INTÉRIEUR du <Router> (il utilise useNavigate),
+ * c'est pour ça qu'il vit dans App.jsx et pas dans main.jsx.
+ */
+function PasswordRecoveryGuard() {
+  const navigate = useNavigate()
+  const location = useLocation()
+
+  useEffect(() => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY' && location.pathname !== '/reset-password') {
+        navigate('/reset-password', { replace: true })
+      }
+    })
+    return () => sub.subscription.unsubscribe()
+  }, [navigate, location.pathname])
+
+  return null
 }
