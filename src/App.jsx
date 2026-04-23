@@ -20,6 +20,7 @@ import Documents from './pages/Documents'
 import Chat from './pages/Chat'
 import Profile from './pages/Profile'
 import History from './pages/History'
+import Install from './pages/Install'
 import MentionsLegales from './pages/legal/MentionsLegales'
 import Privacy from './pages/legal/Privacy'
 import CGU from './pages/legal/CGU'
@@ -88,6 +89,9 @@ export default function App() {
       <Route path="/privacy" element={<Privacy />} />
       <Route path="/cgu" element={<CGU />} />
       <Route path="/cgv" element={<CGV />} />
+
+      {/* Page publique d'installation — QR code + tuto Android/iOS */}
+      <Route path="/install" element={<Install />} />
 
       {/* Routes protégées */}
       <Route element={<ProtectedRoute />}>

@@ -90,6 +90,12 @@ export default function SignIn() {
             <Link to="/signup" className="text-primary font-semibold">Créer un compte</Link>
           </p>
         </form>
+
+        <p className="text-caption text-center text-on-surface-variant mt-md">
+          <Link to="/install" className="hover:text-primary hover:underline">
+            Installer Parenty sur ton téléphone
+          </Link>
+        </p>
       </div>
     </div>
   )
