@@ -116,10 +116,15 @@ serve(async (req) => {
       invitationToken = invitation.token as string
     }
 
-    const appUrl = (Deno.env.get('APP_URL') ?? 'https://parenty.vercel.app').replace(
-      /\/$/,
-      '',
-    )
+    // Fallback strict : si APP_URL est absent, vide, ou localhost, on force
+    // l'URL de prod. Ça évite les liens cassés dans les emails envoyés en
+    // dev (fonction sur Supabase cloud = secret partagé, on n'y enverra
+    // jamais de liens localhost à un vrai utilisateur).
+    const rawAppUrl = (Deno.env.get('APP_URL') ?? '').trim()
+    const appUrl = (rawAppUrl && !/localhost|127\.0\.0\.1/.test(rawAppUrl)
+      ? rawAppUrl
+      : 'https://parenty.vercel.app'
+    ).replace(/\/$/, '')
     const inviteUrl = `${appUrl}/invite?token=${invitationToken}`
 
     // Envoi du mail via Resend
