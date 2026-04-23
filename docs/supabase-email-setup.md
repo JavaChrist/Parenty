@@ -268,6 +268,51 @@ Templates). Active `Enable Custom SMTP`.
 
 ---
 
+## Email d'invitation co-parent (Edge Function `invite-parent`)
+
+L'invitation co-parent n'utilise PAS les templates Supabase Auth (ceux-ci sont
+réservés aux flux d'authentification). On envoie l'email nous-mêmes depuis
+l'Edge Function `invite-parent` via l'API Resend.
+
+### 1. Secrets à configurer
+
+**Dashboard Supabase → Project Settings → Edge Functions → Secrets** (ou via CLI)
+
+| Secret | Valeur | Notes |
+|---|---|---|
+| `APP_URL` | `https://parenty.vercel.app` | Sans slash final |
+| `RESEND_API_KEY` | `re_...` | Même clé que pour le SMTP custom, ou une clé dédiée |
+| `RESEND_FROM` | `Parenty <noreply@javachrist.fr>` | Optionnel, défaut identique |
+
+Version CLI :
+
+```bash
+supabase secrets set APP_URL=https://parenty.vercel.app
+supabase secrets set RESEND_API_KEY=re_xxxxx
+supabase secrets set RESEND_FROM="Parenty <noreply@javachrist.fr>"
+```
+
+### 2. Déploiement de la fonction
+
+```bash
+supabase functions deploy invite-parent
+```
+
+### 3. Template de l'email
+
+Le HTML est intégré au code de la fonction (`supabase/functions/invite-parent/index.ts`),
+personnalisé avec le prénom de l'invitant et le nom de la famille. Il reprend
+le design des autres emails Parenty.
+
+### 4. Comportement en cas d'échec d'envoi
+
+Si `RESEND_API_KEY` n'est pas défini, ou si l'API Resend répond en erreur,
+l'invitation est tout de même créée en base et le `inviteUrl` est renvoyé
+dans la réponse. L'UI affiche alors le lien avec un bouton « Copier » pour
+que l'invitant puisse le transmettre manuellement (SMS, WhatsApp…).
+
+---
+
 ## Vérification post-config
 
 Après avoir collé les templates + activé SMTP :
@@ -282,3 +327,11 @@ Après avoir collé les templates + activé SMTP :
 2. **Test création compte** (si confirm email activé) :
    - Créer un compte neuf
    - Vérifier l'email reçu et le lien
+
+3. **Test invitation co-parent** :
+   - Connecte-toi à ton compte principal
+   - Va sur `/onboarding/invite` (ou bouton « Inviter » dans `/profile`)
+   - Saisis l'email du second parent
+   - Tu dois voir l'écran « Invitation envoyée » (emailSent: true)
+   - Le second parent reçoit un email Parenty brandé
+   - Clique → `/invite?token=...` → se connecte/inscrit → rejoint la famille
