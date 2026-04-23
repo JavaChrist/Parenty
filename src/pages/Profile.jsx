@@ -21,6 +21,8 @@ import { useFamilyMembers } from '../hooks/useFamilyMembers'
 import { useChildren } from '../hooks/useChildren'
 import { useRemoveChild } from '../hooks/useChildrenMutations'
 import { useMyProfile, useProfiles, getAvatarUrl } from '../hooks/useProfile'
+import { useStartSubscription, useCancelSubscription } from '../hooks/useBilling'
+import { usePlanLimits } from '../hooks/usePlanLimits'
 import Modal from '../components/ui/Modal'
 import AddChildForm from '../components/profile/AddChildForm'
 import InviteCoParentForm from '../components/profile/InviteCoParentForm'
@@ -40,6 +42,32 @@ export default function Profile() {
   const [inviteOpen, setInviteOpen] = useState(false)
   const [personalInfoOpen, setPersonalInfoOpen] = useState(false)
   const [passwordOpen, setPasswordOpen] = useState(false)
+  const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false)
+  const [billingError, setBillingError] = useState(null)
+
+  const startSubscription = useStartSubscription()
+  const cancelSubscription = useCancelSubscription()
+  const { atChildLimit, isPremium, childrenLimit } = usePlanLimits()
+
+  const handleSubscribe = async () => {
+    setBillingError(null)
+    try {
+      await startSubscription.mutateAsync()
+      // Redirection gérée dans le hook (window.location.replace)
+    } catch (err) {
+      setBillingError(err.message || 'Impossible de démarrer le paiement.')
+    }
+  }
+
+  const handleConfirmCancel = async () => {
+    setBillingError(null)
+    try {
+      await cancelSubscription.mutateAsync()
+      setCancelConfirmOpen(false)
+    } catch (err) {
+      setBillingError(err.message || 'Impossible de résilier.')
+    }
+  }
 
   // Deep-link : /profile?edit=personal ouvre directement la modale d'édition
   const [searchParams, setSearchParams] = useSearchParams()
@@ -96,15 +124,27 @@ export default function Profile() {
       <section className="space-y-sm">
         <div className="flex items-center justify-between px-sm">
           <h2 className="text-label-sm text-on-surface-variant uppercase tracking-wide">
-            Enfants ({children.length})
+            Enfants ({children.length}
+            {childrenLimit ? ` / ${childrenLimit}` : ''})
           </h2>
           <button
             onClick={() => setAddChildOpen(true)}
-            className="text-label-sm text-primary font-semibold inline-flex items-center gap-1"
+            disabled={atChildLimit}
+            className="text-label-sm text-primary font-semibold inline-flex items-center gap-1 disabled:text-on-surface-variant disabled:opacity-60 disabled:cursor-not-allowed"
           >
             <Plus size={16} strokeWidth={2.5} /> Ajouter
           </button>
         </div>
+
+        {atChildLimit && (
+          <div className="card p-md bg-tertiary-fixed/50 border border-tertiary/20">
+            <p className="text-body-md text-on-tertiary-fixed-variant">
+              <Crown size={14} className="inline -mt-0.5 mr-1" strokeWidth={2} />
+              Plan gratuit limité à {childrenLimit} enfant. Passe en Premium
+              pour ajouter d'autres enfants.
+            </p>
+          </div>
+        )}
 
         {children.length === 0 ? (
           <div className="card p-lg text-center text-on-surface-variant">
@@ -237,20 +277,56 @@ export default function Profile() {
               Abonnement
             </p>
             <h3 className="font-display text-h3 text-on-tertiary-fixed mt-1">
-              {family?.subscription_status === 'active' ? 'Premium' : 'Plan gratuit'}
+              {family?.subscription_status === 'active'
+                ? 'Premium'
+                : family?.subscription_status === 'past_due'
+                  ? 'Paiement en attente'
+                  : family?.subscription_status === 'cancelled'
+                    ? 'Résiliation demandée'
+                    : 'Plan gratuit'}
             </h3>
             <p className="text-body-md text-on-tertiary-fixed-variant mt-1">
               {family?.subscription_status === 'active'
-                ? 'Accès complet.'
-                : 'Enfants et dépenses limités. Passe en Premium pour tout débloquer.'}
+                ? 'Accès complet à toutes les fonctionnalités — 6,99 €/mois.'
+                : family?.subscription_status === 'past_due'
+                  ? 'Le dernier prélèvement a échoué. Mollie retente automatiquement.'
+                  : family?.subscription_status === 'cancelled'
+                    ? family?.subscription_ends_at
+                      ? `Accès jusqu'au ${new Date(family.subscription_ends_at).toLocaleDateString('fr-FR')}.`
+                      : 'Abonnement résilié.'
+                    : 'Famille limitée à 1 enfant. Passe en Premium pour en ajouter plus.'}
             </p>
           </div>
         </div>
-        {family?.subscription_status !== 'active' && (
-          <button className="btn-accent w-full mt-md" disabled>
-            Passer au Premium (bientôt)
-          </button>
+
+        {billingError && (
+          <div className="mt-md text-body-md text-on-error-container bg-error-container rounded-md p-3">
+            {billingError}
+          </div>
         )}
+
+        {family?.subscription_status !== 'active' &&
+          family?.subscription_status !== 'cancelled' && (
+            <button
+              onClick={handleSubscribe}
+              disabled={startSubscription.isPending}
+              className="btn-accent w-full mt-md"
+            >
+              {startSubscription.isPending
+                ? 'Redirection…'
+                : 'Passer au Premium — 6,99 €/mois'}
+            </button>
+          )}
+
+        {family?.subscription_status === 'active' &&
+          familyData?.familyMember?.role === 'owner' && (
+            <button
+              onClick={() => setCancelConfirmOpen(true)}
+              className="btn-ghost w-full mt-md text-on-tertiary-fixed-variant"
+            >
+              Résilier l'abonnement
+            </button>
+          )}
       </section>
 
       {/* Légal */}
@@ -303,6 +379,45 @@ export default function Profile() {
           onSuccess={() => setPasswordOpen(false)}
           onCancel={() => setPasswordOpen(false)}
         />
+      </Modal>
+
+      <Modal
+        open={cancelConfirmOpen}
+        onClose={() => setCancelConfirmOpen(false)}
+        title="Résilier l'abonnement ?"
+      >
+        <div className="space-y-md">
+          <p className="text-body-md text-on-surface-variant">
+            Ton accès Premium reste actif jusqu'à la fin de la période déjà
+            payée
+            {family?.subscription_ends_at
+              ? ` (${new Date(family.subscription_ends_at).toLocaleDateString('fr-FR')})`
+              : ''}
+            . Aucun prélèvement ne sera effectué ensuite.
+          </p>
+          {billingError && (
+            <div className="text-body-md text-on-error-container bg-error-container rounded-md p-3">
+              {billingError}
+            </div>
+          )}
+          <div className="flex gap-sm">
+            <button
+              type="button"
+              onClick={() => setCancelConfirmOpen(false)}
+              className="btn-ghost flex-1"
+            >
+              Annuler
+            </button>
+            <button
+              type="button"
+              onClick={handleConfirmCancel}
+              disabled={cancelSubscription.isPending}
+              className="btn-danger flex-1"
+            >
+              {cancelSubscription.isPending ? 'Résiliation…' : 'Confirmer'}
+            </button>
+          </div>
+        </div>
       </Modal>
     </div>
   )

@@ -10,7 +10,9 @@ export function useFamily() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('family_members')
-        .select('id, role, joined_at, family:families(id, name, subscription_status)')
+        .select(
+          'id, role, joined_at, family:families(id, name, subscription_status, subscription_ends_at, mollie_customer_id, mollie_subscription_id)',
+        )
         .eq('user_id', user.id)
         .order('joined_at', { ascending: false })
         .limit(1)

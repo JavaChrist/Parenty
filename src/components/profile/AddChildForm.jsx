@@ -16,7 +16,14 @@ export default function AddChildForm({ onSuccess, onCancel }) {
       await addChild.mutateAsync({ first_name: firstName.trim(), birth_date: birthDate })
       onSuccess?.()
     } catch (err) {
-      setError(err.message || 'Erreur lors de l\'ajout.')
+      const msg = err?.message || "Erreur lors de l'ajout."
+      if (msg.includes('free_plan_limit')) {
+        setError(
+          "Plan gratuit limité à 1 enfant. Passe en Premium pour en ajouter plus.",
+        )
+      } else {
+        setError(msg)
+      }
     }
   }
 

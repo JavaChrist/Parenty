@@ -46,9 +46,21 @@ enabled = true
 policy = "oneshot"
 inspector_port = 8083
 
-# Fonctions Edge — toutes vérifient le JWT de l'utilisateur
+# Fonctions Edge — JWT requis par défaut (utilisateur connecté qui agit)
 [functions.invite-parent]
 verify_jwt = true
 
 [functions.accept-invite]
 verify_jwt = true
+
+[functions.mollie-create-subscription]
+verify_jwt = true
+
+[functions.mollie-cancel-subscription]
+verify_jwt = true
+
+# Webhook Mollie : pas de JWT, c'est Mollie qui appelle cette URL directement.
+# La sécurité vient du fait qu'on re-fetch toujours l'état auprès de l'API
+# Mollie plutôt que de faire confiance au corps de la requête.
+[functions.mollie-webhook]
+verify_jwt = false

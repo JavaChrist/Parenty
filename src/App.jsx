@@ -24,6 +24,7 @@ import History from './pages/History'
 import Install from './pages/Install'
 import ForgotPassword from './pages/ForgotPassword'
 import ResetPassword from './pages/ResetPassword'
+import SubscribeSuccess from './pages/SubscribeSuccess'
 import MentionsLegales from './pages/legal/MentionsLegales'
 import Privacy from './pages/legal/Privacy'
 import CGU from './pages/legal/CGU'
@@ -107,6 +108,9 @@ export default function App() {
 
         {/* App : nécessite une famille */}
         <Route element={<RequireFamily />}>
+          {/* Retour de Mollie après paiement (hors AppLayout pour écran plein écran) */}
+          <Route path="/subscribe/success" element={<SubscribeSuccess />} />
+
           <Route element={<AppLayout />}>
             <Route path="/" element={<Dashboard />} />
             <Route path="/calendar" element={<Calendar />} />
