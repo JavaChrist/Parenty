@@ -31,7 +31,7 @@ export function useExpenses() {
       const { data, error } = await supabase
         .from('expenses')
         .select(
-          'id, description, category, amount_cents, currency, incurred_on, status, reject_reason, payer_id, validated_by, validated_at, created_at, child_id, receipt_path',
+          'id, description, category, amount_cents, currency, incurred_on, status, reject_reason, payer_id, validated_by, validated_at, created_at, child_id, receipt_path, share_payer_pct',
         )
         .eq('family_id', familyId)
         .order('incurred_on', { ascending: false })
@@ -40,6 +40,53 @@ export function useExpenses() {
       return data
     },
   })
+}
+
+/**
+ * Helpers de calcul du partage payeur / co-parent.
+ *
+ * - payerCharge   : ce que le payeur supporte au final (sa part)
+ * - coparentOwes  : ce que le co-parent doit au payeur (à rembourser)
+ *
+ * Les valeurs sont en centimes pour rester précis ; on arrondit au plus
+ * proche centime sur la part co-parent.
+ */
+export function expenseSplit(expense) {
+  const total = expense.amount_cents
+  const pct = Number(expense.share_payer_pct ?? 50)
+  const payerCharge = Math.round((total * pct) / 100)
+  const coparentOwes = total - payerCharge
+  return { total, pct, payerCharge, coparentOwes }
+}
+
+/**
+ * Solde net courant pour `userId` parmi une liste de dépenses approuvées.
+ *
+ * Modèle 2-parents :
+ *   - User est le payeur → le co-parent lui doit `coparentOwes`
+ *   - User n'est pas le payeur → user doit `coparentOwes` au payeur
+ *
+ * Solde > 0 = le co-parent doit `userId` ; solde < 0 = `userId` doit au co-parent.
+ */
+export function computeBalances(expenses, userId) {
+  let paidByUser = 0
+  let userShare = 0
+  let coparentBalance = 0
+  for (const e of expenses) {
+    if (e.status !== 'approved') continue
+    const { total, payerCharge, coparentOwes } = expenseSplit(e)
+    if (e.payer_id === userId) {
+      paidByUser += total
+      userShare += payerCharge
+      coparentBalance += coparentOwes
+    } else {
+      // Le payeur est l'autre parent. La part de userId = ce que le co-parent
+      // (=user) doit, c'est-à-dire coparentOwes côté payeur.
+      userShare += coparentOwes
+      coparentBalance -= coparentOwes
+    }
+  }
+  return { paidByUser, userShare, coparentBalance }
 }
 
 /**
@@ -86,6 +133,12 @@ export function useAddExpense() {
         receiptPath = path
       }
 
+      // share_payer_pct : 50 par défaut, on borne entre 0 et 100.
+      const sharePct = Math.max(
+        0,
+        Math.min(100, Number(input.share_payer_pct ?? 50)),
+      )
+
       const payload = {
         family_id: familyId,
         child_id: input.child_id || null,
@@ -97,6 +150,7 @@ export function useAddExpense() {
         payer_id: user.id,
         status: 'pending',
         receipt_path: receiptPath,
+        share_payer_pct: sharePct,
       }
 
       const { data, error } = await supabase

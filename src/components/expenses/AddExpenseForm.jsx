@@ -17,12 +17,33 @@ export default function AddExpenseForm({ onSuccess, onCancel }) {
     amount: '',
     incurred_on: today(),
     child_id: '',
+    share_payer_pct: 50,
   })
+  const [shareMode, setShareMode] = useState('5050')
   const [receiptFile, setReceiptFile] = useState(null)
   const [error, setError] = useState(null)
 
   const update = (key) => (e) =>
     setForm((f) => ({ ...f, [key]: e.target.value }))
+
+  const selectShareMode = (mode) => {
+    setShareMode(mode)
+    if (mode === '5050') setForm((f) => ({ ...f, share_payer_pct: 50 }))
+    else if (mode === 'all_me') setForm((f) => ({ ...f, share_payer_pct: 100 }))
+    else if (mode === 'all_other') setForm((f) => ({ ...f, share_payer_pct: 0 }))
+  }
+
+  const updateCustomPct = (e) => {
+    let v = Number(e.target.value)
+    if (Number.isNaN(v)) v = 50
+    v = Math.max(0, Math.min(100, v))
+    setForm((f) => ({ ...f, share_payer_pct: v }))
+  }
+
+  // Aperçu du partage en temps réel
+  const amountCents = Math.round(Number(form.amount || 0) * 100)
+  const myCents = Math.round((amountCents * Number(form.share_payer_pct)) / 100)
+  const otherCents = amountCents - myCents
 
   const handleFileChange = (e) => {
     const file = e.target.files?.[0]
@@ -153,6 +174,61 @@ export default function AddExpenseForm({ onSuccess, onCancel }) {
           </select>
         </div>
       )}
+
+      <div>
+        <span className="label">Partage avec le co-parent</span>
+        <div className="grid grid-cols-2 gap-1 mt-1">
+          {[
+            { id: '5050', label: '50 / 50' },
+            { id: 'all_me', label: '100% à ma charge' },
+            { id: 'all_other', label: '100% au co-parent' },
+            { id: 'custom', label: 'Personnalisé' },
+          ].map((opt) => (
+            <button
+              key={opt.id}
+              type="button"
+              onClick={() => selectShareMode(opt.id)}
+              className={[
+                'px-3 py-2 rounded-md text-label-sm font-semibold border transition-colors',
+                shareMode === opt.id
+                  ? 'bg-primary text-on-primary border-primary'
+                  : 'bg-surface-container-lowest border-outline-variant text-on-surface hover:bg-surface-container-low',
+              ].join(' ')}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+        {shareMode === 'custom' && (
+          <div className="mt-sm flex items-center gap-md">
+            <label
+              htmlFor="share_payer_pct"
+              className="text-body-md text-on-surface-variant whitespace-nowrap"
+            >
+              Ma part :
+            </label>
+            <input
+              id="share_payer_pct"
+              type="number"
+              min="0"
+              max="100"
+              step="1"
+              value={form.share_payer_pct}
+              onChange={updateCustomPct}
+              className="input w-24"
+              inputMode="numeric"
+            />
+            <span className="text-body-md text-on-surface-variant">%</span>
+          </div>
+        )}
+        {amountCents > 0 && (
+          <p className="text-caption text-on-surface-variant mt-2">
+            Toi : <strong>{(myCents / 100).toFixed(2)} €</strong>
+            {' · '}
+            Co-parent : <strong>{(otherCents / 100).toFixed(2)} €</strong>
+          </p>
+        )}
+      </div>
 
       <div>
         <span className="label">Facture ou justificatif (optionnel)</span>

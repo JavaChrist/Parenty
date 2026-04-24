@@ -26,6 +26,8 @@ import {
   useValidateExpense,
   EXPENSE_CATEGORIES,
   getReceiptSignedUrl,
+  expenseSplit,
+  computeBalances,
 } from '../hooks/useExpenses'
 import { usePlanLimits } from '../hooks/usePlanLimits'
 import Modal from '../components/ui/Modal'
@@ -59,14 +61,16 @@ const STATUS_META = {
   rejected: { label: 'Refusée', className: 'pill-danger', Icon: X },
 }
 
-// Calcule le total du mois en cours
-function sumCurrentMonth(expenses) {
+// Filtre les dépenses du mois calendaire en cours (hors refusées).
+function currentMonthExpenses(expenses) {
   const now = new Date()
   const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
-  return expenses
-    .filter((e) => e.status !== 'rejected' && e.incurred_on.startsWith(ym))
-    .reduce((s, e) => s + e.amount_cents, 0)
+  return expenses.filter(
+    (e) => e.status !== 'rejected' && e.incurred_on.startsWith(ym),
+  )
 }
+
+const fmtEur = (cents) => `${(cents / 100).toFixed(2)} €`
 
 export default function Expenses() {
   const user = useAuthStore((s) => s.user)
@@ -81,9 +85,12 @@ export default function Expenses() {
   const [addOpen, setAddOpen] = useState(false)
   const [rejectingId, setRejectingId] = useState(null)
 
-  const totalCents = sumCurrentMonth(expenses)
-  const total = totalCents / 100
-  const myShare = total / 2
+  const monthExpenses = currentMonthExpenses(expenses)
+  const totalMonthCents = monthExpenses.reduce(
+    (s, e) => s + e.amount_cents,
+    0,
+  )
+  const balances = computeBalances(monthExpenses, user?.id)
 
   return (
     <div className="space-y-lg">
@@ -94,19 +101,58 @@ export default function Expenses() {
         </p>
       </header>
 
-      <section className="card-elevated bg-tertiary-container text-on-tertiary p-lg">
-        <p className="text-caption uppercase tracking-wide text-on-tertiary/80">
-          Total partagé ce mois
-        </p>
-        <div className="flex items-baseline gap-2 mt-1">
-          <span className="font-display text-display font-bold">
-            {total.toFixed(2)}
-          </span>
-          <span className="text-body-lg font-semibold">€</span>
+      <section className="card-elevated bg-tertiary-container text-on-tertiary p-lg space-y-md">
+        <div>
+          <p className="text-caption uppercase tracking-wide text-on-tertiary/80">
+            Total des dépenses ce mois
+          </p>
+          <div className="flex items-baseline gap-2 mt-1">
+            <span className="font-display text-display font-bold">
+              {(totalMonthCents / 100).toFixed(2)}
+            </span>
+            <span className="text-body-lg font-semibold">€</span>
+          </div>
         </div>
-        <div className="flex items-center justify-between mt-md text-body-md">
-          <span className="text-on-tertiary/90">Ta part (50 %)</span>
-          <span className="font-semibold">{myShare.toFixed(2)} €</span>
+
+        <div className="space-y-1 text-body-md border-t border-on-tertiary/15 pt-md">
+          <div className="flex items-center justify-between">
+            <span className="text-on-tertiary/90">Tu as payé</span>
+            <span className="font-semibold">{fmtEur(balances.paidByUser)}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-on-tertiary/90">Ta part équitable</span>
+            <span className="font-semibold">{fmtEur(balances.userShare)}</span>
+          </div>
+        </div>
+
+        <div className="border-t border-on-tertiary/15 pt-md">
+          {balances.coparentBalance === 0 ? (
+            <p className="text-body-md text-on-tertiary/90">
+              Comptes équilibrés ce mois-ci.
+            </p>
+          ) : balances.coparentBalance > 0 ? (
+            <div>
+              <p className="text-caption uppercase tracking-wide text-on-tertiary/80">
+                Le co-parent te doit
+              </p>
+              <p className="font-display text-h2 font-bold mt-0.5">
+                {fmtEur(balances.coparentBalance)}
+              </p>
+            </div>
+          ) : (
+            <div>
+              <p className="text-caption uppercase tracking-wide text-on-tertiary/80">
+                Tu dois au co-parent
+              </p>
+              <p className="font-display text-h2 font-bold mt-0.5">
+                {fmtEur(-balances.coparentBalance)}
+              </p>
+            </div>
+          )}
+          <p className="text-caption text-on-tertiary/70 mt-1">
+            Calculé sur les dépenses validées du mois en cours, en tenant
+            compte du partage défini sur chaque ligne.
+          </p>
         </div>
       </section>
 
@@ -220,6 +266,15 @@ function ExpenseRow({ expense, currentUserId, onReject }) {
     month: 'short',
   })
 
+  // Partage : libellé court à afficher en pill
+  const split = expenseSplit(expense)
+  const payerSide = isMine ? split.pct : 100 - split.pct
+  const otherSide = 100 - payerSide
+  let shareLabel = `${payerSide.toFixed(0)} / ${otherSide.toFixed(0)}`
+  if (split.pct === 50) shareLabel = '50 / 50'
+  else if (split.pct === 100) shareLabel = isMine ? '100 % toi' : '100 % co-parent'
+  else if (split.pct === 0) shareLabel = isMine ? '100 % co-parent' : '100 % toi'
+
   return (
     <article className="card p-md">
       <div className="flex items-center gap-md">
@@ -236,15 +291,23 @@ function ExpenseRow({ expense, currentUserId, onReject }) {
               {amount} €
             </span>
           </div>
-          <div className="flex items-center justify-between mt-1 gap-2">
+          <div className="flex items-center justify-between mt-1 gap-2 flex-wrap">
             <p className="text-caption text-on-surface-variant">
               {CATEGORY_LABELS[expense.category] ?? expense.category} ·{' '}
               {isMine ? 'Toi' : 'Co-parent'} · {date}
             </p>
-            <span className={status.className}>
-              <StatusIcon size={12} strokeWidth={2.5} />
-              {status.label}
-            </span>
+            <div className="flex items-center gap-1 flex-wrap">
+              <span
+                className="text-caption font-semibold px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant"
+                title={`Tu supportes ${payerSide.toFixed(0)}%, le co-parent ${otherSide.toFixed(0)}%`}
+              >
+                {shareLabel}
+              </span>
+              <span className={status.className}>
+                <StatusIcon size={12} strokeWidth={2.5} />
+                {status.label}
+              </span>
+            </div>
           </div>
         </div>
       </div>
