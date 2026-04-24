@@ -82,6 +82,39 @@ export function useAddCustodySchedule() {
   })
 }
 
+export function useUpdateCustodySchedule() {
+  const qc = useQueryClient()
+  const familyId = useFamilyId()
+
+  return useMutation({
+    mutationFn: async ({ id, patch }) => {
+      if (!id) throw new Error('Identifiant manquant')
+      const payload = {
+        parent_user_id: patch.parent_user_id,
+        label: patch.label?.trim() || null,
+        start_day_of_week: Number(patch.start_day_of_week),
+        start_time: patch.start_time,
+        end_day_of_week: Number(patch.end_day_of_week),
+        end_time: patch.end_time,
+        recurrence: patch.recurrence || 'weekly',
+        valid_from: patch.valid_from || null,
+        valid_to: patch.valid_to || null,
+      }
+      const { data, error } = await supabase
+        .from('custody_schedules')
+        .update(payload)
+        .eq('id', id)
+        .select()
+        .single()
+      if (error) throw error
+      return data
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['custody_schedules', familyId] })
+    },
+  })
+}
+
 export function useDeleteCustodySchedule() {
   const qc = useQueryClient()
   const familyId = useFamilyId()

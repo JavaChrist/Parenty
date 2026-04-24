@@ -11,6 +11,12 @@ import {
   Gamepad2,
   Wallet,
   Paperclip,
+  Palmtree,
+  Bus,
+  Dumbbell,
+  Car,
+  Gift,
+  Baby,
 } from 'lucide-react'
 import { useAuthStore } from '../stores/authStore'
 import { Link } from 'react-router-dom'
@@ -29,10 +35,16 @@ import RejectExpenseForm from '../components/expenses/RejectExpenseForm'
 // Icônes par catégorie BD → composant
 const CATEGORY_ICONS = {
   school: GraduationCap,
+  school_trip: Bus,
   medical: Stethoscope,
   clothing: ShoppingBag,
-  leisure: Gamepad2,
   food: Utensils,
+  leisure: Gamepad2,
+  sport: Dumbbell,
+  vacation: Palmtree,
+  transport: Car,
+  gifts: Gift,
+  childcare: Baby,
   other: Wallet,
 }
 

@@ -5,10 +5,16 @@ import { useFamilyId } from './useFamily'
 
 export const EXPENSE_CATEGORIES = [
   { value: 'school', label: 'École' },
+  { value: 'school_trip', label: 'Sortie scolaire' },
   { value: 'medical', label: 'Santé' },
   { value: 'clothing', label: 'Vêtements' },
-  { value: 'leisure', label: 'Loisirs' },
   { value: 'food', label: 'Alimentation' },
+  { value: 'leisure', label: 'Loisirs' },
+  { value: 'sport', label: 'Sport' },
+  { value: 'vacation', label: 'Vacances' },
+  { value: 'transport', label: 'Transport' },
+  { value: 'gifts', label: 'Cadeaux' },
+  { value: 'childcare', label: "Garde d'enfants" },
   { value: 'other', label: 'Autre' },
 ]
 

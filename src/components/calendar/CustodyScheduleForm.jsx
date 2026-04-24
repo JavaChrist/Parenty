@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import {
   useAddCustodySchedule,
+  useUpdateCustodySchedule,
   RECURRENCE_OPTIONS,
   DAYS_OF_WEEK,
 } from '../../hooks/useCustodySchedules'
@@ -17,7 +18,18 @@ function displayName(profile, fallback = 'Parent') {
   return full || fallback
 }
 
-export default function CustodyScheduleForm({ onSuccess, onCancel }) {
+// Les valeurs `time` peuvent venir du DB en `HH:MM:SS` mais l'input HTML
+// veut `HH:MM`. On tronque proprement à 5 caractères.
+const trimTime = (t) => (t ? String(t).slice(0, 5) : '')
+
+/**
+ * Formulaire dual création / édition d'un schéma de garde.
+ *
+ * - Si `schedule` est fourni → mode édition (update)
+ * - Sinon → mode création (insert)
+ */
+export default function CustodyScheduleForm({ schedule, onSuccess, onCancel }) {
+  const isEdit = !!schedule
   const user = useAuthStore((s) => s.user)
   const { data: members = [] } = useFamilyMembers()
   const parents = members.filter(
@@ -26,22 +38,24 @@ export default function CustodyScheduleForm({ onSuccess, onCancel }) {
   const parentIds = parents.map((p) => p.user_id)
   const { data: profilesById = {} } = useProfiles(parentIds)
   const addSchedule = useAddCustodySchedule()
+  const updateSchedule = useUpdateCustodySchedule()
 
   const [form, setForm] = useState({
-    parent_user_id: user?.id || '',
-    label: '',
-    start_day_of_week: 0,
-    start_time: '17:00',
-    end_day_of_week: 3,
-    end_time: '10:00',
-    recurrence: 'weekly',
-    valid_from: '',
-    valid_to: '',
+    parent_user_id: schedule?.parent_user_id ?? user?.id ?? '',
+    label: schedule?.label ?? '',
+    start_day_of_week: schedule?.start_day_of_week ?? 0,
+    start_time: trimTime(schedule?.start_time) || '17:00',
+    end_day_of_week: schedule?.end_day_of_week ?? 3,
+    end_time: trimTime(schedule?.end_time) || '10:00',
+    recurrence: schedule?.recurrence ?? 'weekly',
+    valid_from: schedule?.valid_from ?? '',
+    valid_to: schedule?.valid_to ?? '',
   })
   const [error, setError] = useState(null)
 
   const update = (key) => (e) => {
-    const value = e.target.type === 'number' ? Number(e.target.value) : e.target.value
+    const value =
+      e.target.type === 'number' ? Number(e.target.value) : e.target.value
     setForm((f) => ({ ...f, [key]: value }))
   }
 
@@ -50,12 +64,23 @@ export default function CustodyScheduleForm({ onSuccess, onCancel }) {
     setError(null)
     if (!form.parent_user_id) return setError('Choisis quel parent a la garde.')
     try {
-      await addSchedule.mutateAsync(form)
+      if (isEdit) {
+        await updateSchedule.mutateAsync({ id: schedule.id, patch: form })
+      } else {
+        await addSchedule.mutateAsync(form)
+      }
       onSuccess?.()
     } catch (err) {
-      setError(err.message || 'Impossible de créer le schéma.')
+      setError(
+        err.message ||
+          (isEdit
+            ? 'Impossible de mettre à jour le schéma.'
+            : 'Impossible de créer le schéma.'),
+      )
     }
   }
+
+  const isPending = isEdit ? updateSchedule.isPending : addSchedule.isPending
 
   return (
     <form onSubmit={submit} className="space-y-md">
@@ -211,10 +236,16 @@ export default function CustodyScheduleForm({ onSuccess, onCancel }) {
         </button>
         <button
           type="submit"
-          disabled={addSchedule.isPending}
+          disabled={isPending}
           className="btn-primary flex-1"
         >
-          {addSchedule.isPending ? 'Création…' : 'Créer le schéma'}
+          {isPending
+            ? isEdit
+              ? 'Enregistrement…'
+              : 'Création…'
+            : isEdit
+              ? 'Enregistrer'
+              : 'Créer le schéma'}
         </button>
       </div>
     </form>

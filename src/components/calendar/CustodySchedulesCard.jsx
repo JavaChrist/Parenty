@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, Trash2, Repeat } from 'lucide-react'
+import { Plus, Trash2, Repeat, Pencil } from 'lucide-react'
 import {
   useCustodySchedules,
   useDeleteCustodySchedule,
@@ -39,6 +39,7 @@ export default function CustodySchedulesCard() {
   const { data: profilesById = {} } = useProfiles(parentIds)
 
   const [addOpen, setAddOpen] = useState(false)
+  const [editing, setEditing] = useState(null)
 
   const onDelete = (s) => {
     if (
@@ -105,6 +106,14 @@ export default function CustodySchedulesCard() {
                 </div>
                 <button
                   type="button"
+                  onClick={() => setEditing(s)}
+                  className="p-2 rounded-full text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors flex-shrink-0"
+                  aria-label="Modifier le schéma"
+                >
+                  <Pencil size={16} />
+                </button>
+                <button
+                  type="button"
                   onClick={() => onDelete(s)}
                   disabled={deleteSchedule.isPending}
                   className="p-2 rounded-full text-on-surface-variant hover:bg-error-container hover:text-on-error-container transition-colors flex-shrink-0"
@@ -127,6 +136,20 @@ export default function CustodySchedulesCard() {
           onSuccess={() => setAddOpen(false)}
           onCancel={() => setAddOpen(false)}
         />
+      </Modal>
+
+      <Modal
+        open={!!editing}
+        onClose={() => setEditing(null)}
+        title="Modifier le schéma de garde"
+      >
+        {editing && (
+          <CustodyScheduleForm
+            schedule={editing}
+            onSuccess={() => setEditing(null)}
+            onCancel={() => setEditing(null)}
+          />
+        )}
       </Modal>
     </section>
   )

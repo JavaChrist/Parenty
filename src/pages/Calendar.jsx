@@ -1,11 +1,15 @@
 import { useState, useMemo } from 'react'
 import { Plus, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock, ChevronRight as ChevronRightIcon, Repeat } from 'lucide-react'
 import { useEventsForMonth, EVENT_KINDS } from '../hooks/useEvents'
-import { useExpandedCustodyEvents } from '../hooks/useCustodySchedules'
+import {
+  useCustodySchedules,
+  useExpandedCustodyEvents,
+} from '../hooks/useCustodySchedules'
 import Modal from '../components/ui/Modal'
 import AddEventForm from '../components/events/AddEventForm'
 import EventDetailModal from '../components/events/EventDetailModal'
 import CustodySchedulesCard from '../components/calendar/CustodySchedulesCard'
+import CustodyScheduleForm from '../components/calendar/CustodyScheduleForm'
 import { custodyColorFor } from '../components/calendar/custodyColors'
 
 const MONTHS = [
@@ -62,8 +66,13 @@ export default function Calendar() {
   const [selectedDate, setSelectedDate] = useState(today)
   const [addOpen, setAddOpen] = useState(false)
   const [selectedEvent, setSelectedEvent] = useState(null)
+  const [editingScheduleId, setEditingScheduleId] = useState(null)
 
   const { data: events = [], isLoading } = useEventsForMonth(cursor.year, cursor.month)
+  const { data: schedules = [] } = useCustodySchedules()
+  const editingSchedule = editingScheduleId
+    ? schedules.find((s) => s.id === editingScheduleId) ?? null
+    : null
 
   const days = useMemo(() => buildMonthGrid(cursor.year, cursor.month), [cursor])
 
@@ -218,12 +227,15 @@ export default function Calendar() {
           if (e.is_virtual) {
             const color = custodyColorFor(e.parent_user_id)
             return (
-              <div
+              <button
                 key={e.id}
+                type="button"
+                onClick={() => setEditingScheduleId(e.schedule_id)}
                 className={[
-                  'card p-md flex gap-md items-start border-l-4',
+                  'card p-md flex gap-md items-start w-full text-left border-l-4 transition-colors hover:bg-surface-container-low focus:outline-none focus:ring-2 focus:ring-primary/30',
                   color.border,
                 ].join(' ')}
+                aria-label={`Modifier le schéma de garde "${e.title}"`}
               >
                 <div
                   className={[
@@ -255,7 +267,11 @@ export default function Calendar() {
                     })}
                   </p>
                 </div>
-              </div>
+                <ChevronRightIcon
+                  size={18}
+                  className="text-on-surface-variant/60 mt-2 flex-shrink-0"
+                />
+              </button>
             )
           }
 
@@ -353,6 +369,20 @@ export default function Calendar() {
         open={!!selectedEvent}
         onClose={() => setSelectedEvent(null)}
       />
+
+      <Modal
+        open={!!editingSchedule}
+        onClose={() => setEditingScheduleId(null)}
+        title="Modifier le schéma de garde"
+      >
+        {editingSchedule && (
+          <CustodyScheduleForm
+            schedule={editingSchedule}
+            onSuccess={() => setEditingScheduleId(null)}
+            onCancel={() => setEditingScheduleId(null)}
+          />
+        )}
+      </Modal>
     </div>
   )
 }
