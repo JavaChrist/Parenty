@@ -25,6 +25,7 @@ import Install from './pages/Install'
 import ForgotPassword from './pages/ForgotPassword'
 import ResetPassword from './pages/ResetPassword'
 import SubscribeSuccess from './pages/SubscribeSuccess'
+import Billing from './pages/Billing'
 import MentionsLegales from './pages/legal/MentionsLegales'
 import Privacy from './pages/legal/Privacy'
 import CGU from './pages/legal/CGU'
@@ -118,6 +119,7 @@ export default function App() {
             <Route path="/documents" element={<Documents />} />
             <Route path="/chat" element={<Chat />} />
             <Route path="/profile" element={<Profile />} />
+            <Route path="/billing" element={<Billing />} />
             <Route path="/history" element={<History />} />
           </Route>
         </Route>

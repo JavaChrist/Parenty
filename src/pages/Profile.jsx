@@ -327,6 +327,17 @@ export default function Profile() {
               Résilier l'abonnement
             </button>
           )}
+
+        {(family?.subscription_status === 'active' ||
+          family?.subscription_status === 'cancelled' ||
+          family?.subscription_status === 'past_due') && (
+          <Link
+            to="/billing"
+            className="block text-center text-body-md text-on-tertiary-fixed-variant hover:text-on-tertiary-fixed font-semibold mt-sm underline-offset-4 hover:underline"
+          >
+            Historique des paiements →
+          </Link>
+        )}
       </section>
 
       {/* Légal */}

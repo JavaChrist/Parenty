@@ -2,23 +2,13 @@ import LegalLayout, { LegalSection, LegalContact } from '../../components/layout
 
 export default function CGV() {
   return (
-    <LegalLayout title="Conditions générales de vente" updatedAt="23 avril 2026">
-      <div className="card-flat p-md bg-primary-container/40">
-        <p className="text-on-primary-container">
-          <strong>À noter :</strong> à ce jour, l'ensemble des fonctionnalités
-          de Parenty est proposé à titre gratuit. Les présentes CGV
-          s'appliqueront dès la mise en place d'une offre payante
-          (abonnement « Premium »). Elles sont publiées par anticipation
-          pour garantir la transparence contractuelle.
-        </p>
-      </div>
-
+    <LegalLayout title="Conditions générales de vente" updatedAt="24 avril 2026">
       <p>
         Les présentes Conditions Générales de Vente (ci-après « CGV »)
         régissent les relations contractuelles entre Christian Grohens
         (ci-après « l'Éditeur ») et toute personne physique (ci-après
-        « le Client ») souscrivant à une offre payante de l'application
-        <strong> Parenty</strong>.
+        « le Client ») souscrivant à l'offre payante{' '}
+        <strong>Parenty Premium</strong>.
       </p>
 
       <LegalSection title="1. Identification du vendeur">
@@ -27,44 +17,72 @@ export default function CGV() {
       </LegalSection>
 
       <LegalSection title="2. Offres proposées">
+        <p>Parenty est proposé selon deux formules :</p>
+        <ul className="list-disc pl-6 space-y-1">
+          <li>
+            <strong>Plan gratuit</strong> : accès à l'ensemble des
+            fonctionnalités de l'Application (agenda, dépenses, documents,
+            messagerie, invitation du co-parent), avec une limite de{' '}
+            <strong>1&nbsp;enfant par espace familial</strong>.
+          </li>
+          <li>
+            <strong>Parenty Premium</strong> : accès identique, sans
+            limitation du nombre d'enfants, au tarif de{' '}
+            <strong>6,99&nbsp;€&nbsp;TTC par mois</strong>, sans
+            engagement de durée, résiliable à tout moment depuis
+            l'Application.
+          </li>
+        </ul>
         <p>
-          Parenty est actuellement proposé en offre gratuite, avec
-          certaines limitations d'usage. L'offre payante « Premium », qui
-          sera prochainement disponible, donnera accès à l'ensemble des
-          fonctionnalités sans limitation.
-        </p>
-        <p>
-          Les caractéristiques, prix et conditions exactes de l'offre
-          Premium seront précisés lors de son lancement, directement dans
-          l'Application et sur le site web de l'Éditeur.
+          Aucune période d'essai gratuite n'est proposée : la souscription
+          déclenche immédiatement l'ouverture de l'accès Premium et le
+          premier prélèvement.
         </p>
       </LegalSection>
 
       <LegalSection title="3. Tarif et modalités de paiement">
         <p>
-          Les prix sont indiqués en euros (EUR), toutes taxes comprises
-          (TVA française applicable). Le paiement s'effectue par carte
-          bancaire via un prestataire de paiement sécurisé agréé.
+          Le tarif de l'abonnement Parenty Premium est de{' '}
+          <strong>6,99&nbsp;€ TTC par mois</strong>, TVA française
+          applicable. Le prélèvement est mensuel et reconduit
+          automatiquement à chaque échéance.
         </p>
         <p>
-          Aucune donnée bancaire n'est conservée par l'Éditeur. Les
-          coordonnées de paiement sont collectées et traitées directement
-          par le prestataire de paiement, selon ses propres conditions.
+          Le paiement s'effectue par carte bancaire ou tout autre moyen de
+          paiement proposé par le prestataire, via la plateforme{' '}
+          <strong>Mollie B.V.</strong> (Keizersgracht 313, 1016 EE
+          Amsterdam, Pays-Bas), prestataire de paiement agréé en qualité
+          d'établissement de monnaie électronique.
+        </p>
+        <p>
+          <strong>Aucune donnée bancaire n'est conservée par l'Éditeur.</strong>{' '}
+          Les coordonnées de paiement sont collectées et traitées
+          exclusivement par Mollie, conformément à ses propres conditions
+          et à la réglementation PCI-DSS.
         </p>
       </LegalSection>
 
       <LegalSection title="4. Souscription et durée">
         <p>
-          L'abonnement Premium est souscrit pour une durée mensuelle ou
-          annuelle selon l'offre choisie par le Client. Il est reconduit
-          tacitement à chaque échéance, sauf résiliation par le Client avant
-          la date de reconduction.
+          L'abonnement Parenty Premium est souscrit pour une durée
+          mensuelle. Il est <strong>reconduit tacitement</strong> chaque
+          mois à la date anniversaire de la souscription, sauf résiliation
+          par le Client avant cette date.
         </p>
         <p>
-          La résiliation peut être effectuée à tout moment depuis
-          l'Application (paramètres du compte) ou par email auprès du
-          support. Elle prend effet à la fin de la période en cours, sans
-          prorata.
+          La résiliation peut être effectuée à tout moment, sans motif et
+          sans pénalité, depuis l'Application (<em>Profil → Résilier
+          l'abonnement</em>) ou par email auprès du support à{' '}
+          <a
+            href="mailto:support@javachrist.fr"
+            className="text-primary font-semibold hover:underline"
+          >
+            support@javachrist.fr
+          </a>
+          . Elle prend effet <strong>à la fin de la période mensuelle en
+          cours déjà payée</strong>, sans prorata temporis : aucun nouveau
+          prélèvement ne sera effectué et l'accès Premium reste actif
+          jusqu'à la date d'échéance.
         </p>
       </LegalSection>
 
@@ -113,9 +131,22 @@ export default function CGV() {
 
       <LegalSection title="7. Facturation">
         <p>
-          Une facture électronique est émise à chaque paiement et mise à
-          disposition du Client dans son espace personnel. Le Client peut
-          également en demander copie par email.
+          Un reçu électronique est émis à chaque paiement par le
+          prestataire Mollie et transmis par email à l'adresse renseignée
+          par le Client. L'historique des prélèvements est également
+          consultable à tout moment dans l'Application, depuis{' '}
+          <em>Profil → Historique des paiements</em>.
+        </p>
+        <p>
+          Le Client peut demander l'émission d'une facture nominative par
+          email à{' '}
+          <a
+            href="mailto:support@javachrist.fr"
+            className="text-primary font-semibold hover:underline"
+          >
+            support@javachrist.fr
+          </a>
+          .
         </p>
       </LegalSection>
 

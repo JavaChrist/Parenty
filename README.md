@@ -10,7 +10,8 @@ PWA destinée aux parents séparés ou divorcés. L'application centralise les i
 - **Routing** : React Router v6
 - **État** : Zustand (auth) + TanStack Query (données serveur, realtime)
 - **Backend** : Supabase (Auth, Postgres + RLS, Storage, Realtime, Edge Functions)
-- **Paiement** : Mollie (abonnement mensuel sans engagement) — _à venir_
+- **Emails transactionnels** : Resend (invitation co-parent, via Edge Function `invite-parent`)
+- **Paiement** : Mollie — abonnement **Parenty Premium** 6,99 €/mois sans engagement
 - **Hébergement** : Vercel (front) + Supabase (données, région Francfort UE)
 
 ## Démarrage
@@ -40,14 +41,26 @@ npm run dev
    supabase/migrations/20260422000006_message_attachments.sql
    supabase/migrations/20260422000007_user_deletion_cascade.sql
    supabase/migrations/20260423000001_realtime_shared_tables.sql
+   supabase/migrations/20260423000002_bootstrap_family_rpc.sql
+   supabase/migrations/20260423000003_mollie_billing.sql
+   supabase/migrations/20260423000004_free_plan_children_limit.sql
    ```
 3. Déploie les edge functions :
    ```bash
    supabase functions deploy invite-parent
    supabase functions deploy accept-invite
+   supabase functions deploy mollie-create-subscription
+   supabase functions deploy mollie-webhook --no-verify-jwt
+   supabase functions deploy mollie-cancel-subscription
    ```
-   (ou `npm run sb:deploy` pour les deux en une seule commande)
-4. Les buckets Storage sont créés automatiquement par les migrations :
+4. Configure les secrets des Edge Functions (`supabase secrets set KEY=value` ou Dashboard) :
+   ```
+   RESEND_API_KEY=re_xxx       # pour invite-parent
+   RESEND_FROM=Parenty <noreply@javachrist.fr>
+   MOLLIE_API_KEY=live_xxx     # ou test_xxx en dev
+   APP_URL=https://parenty.vercel.app
+   ```
+5. Les buckets Storage sont créés automatiquement par les migrations :
 
    | Bucket            | Visibilité | Usage                                  |
    |-------------------|------------|----------------------------------------|
@@ -101,6 +114,7 @@ parenty/
 | `documents`            | Documents (PDF/images) — soft-delete |
 | `messages`             | Chat avec pièces jointes, `read_at` pour les non-lus |
 | `invitations`          | Invitation du co-parent (token unique, expire sous 7j) |
+| `billing_events`       | Journal des événements Mollie reçus par le webhook (audit + historique de facturation) |
 
 ## Fonctionnalités principales
 
@@ -172,12 +186,26 @@ parenty/
 - Composant `UpdatePrompt` : bandeau « Une nouvelle version est disponible » dès qu'un nouveau service worker est prêt, avec bouton « Mettre à jour »
 - Évite les caches fantômes entre parents après déploiement
 
+### Abonnement Premium (Mollie)
+- **Parenty Premium** : 6,99 €/mois sans engagement, résiliable à tout moment depuis `/profile`
+- Plan gratuit limité à **1 enfant** par famille (trigger `enforce_free_plan_children_limit` appliqué côté DB, source de vérité)
+- Flow Mollie : `mollie-create-subscription` crée le customer + un first payment, Mollie redirige vers `/subscribe/success`, puis le webhook `mollie-webhook` crée la subscription récurrente et bascule `families.subscription_status` en `active`
+- Résiliation : `mollie-cancel-subscription` (owner uniquement). L'utilisateur conserve l'accès Premium jusqu'à la fin de la période déjà payée
+- Portail facturation in-app : `/billing` avec l'historique des paiements (table `billing_events`, alimentée par le webhook)
+- Les reçus PDF officiels sont envoyés par Mollie par email à chaque prélèvement
+- Détails de configuration : [`docs/mollie-setup.md`](docs/mollie-setup.md)
+
+### Emails transactionnels
+- **Authentification** (confirmation, mot de passe oublié, changement d'email) : templates HTML français configurés dans Supabase Auth → Email Templates. Détails : [`docs/supabase-email-setup.md`](docs/supabase-email-setup.md)
+- **Invitation co-parent** : email HTML branding Parenty/JavaChrist envoyé via **Resend** par l'Edge Function `invite-parent`. Si Resend échoue (clé manquante, quota), le client affiche un fallback avec le lien d'invitation à copier manuellement
+- **Reçus de paiement** : envoyés directement par Mollie, pas de logique custom
+
 ### Pages légales
 Routes publiques accessibles sans authentification :
 - `/mentions-legales` — éditeur, hébergeur, contact, responsabilités
 - `/privacy` — RGPD, données collectées, durées, droits, cookies (pas de tracker externe)
 - `/cgu` — règles d'usage, parti pris anti-surveillance, modération
-- `/cgv` — publiées en prévision du futur abonnement Premium Mollie
+- `/cgv` — conditions de l'abonnement Premium (prix, reconduction, résiliation, rétractation, Mollie)
 
 Toutes partagent `LegalLayout` (retour, titre, date de mise à jour).
 
@@ -226,8 +254,9 @@ npm run lint     # ESLint
 - [x] Événements annulés visibles + historique contextuel + page `/history`
 - [x] Realtime inter-parents (events / expenses / documents) + prompt de mise à jour PWA
 - [x] Pages légales (mentions, CGU, CGV, RGPD)
-- [ ] Intégration Mollie (abonnement + paywall)
-- [ ] Emails transactionnels Supabase (confirmation, mot de passe oublié, abonnement)
+- [x] Emails transactionnels (Supabase Auth FR + invitation co-parent via Resend)
+- [x] Intégration Mollie (abonnement Premium 6,99 €/mois, webhook, résiliation, gating 1 enfant en gratuit)
+- [x] Portail de facturation in-app (`/billing`)
 
 ### V2
 - Export PDF certifié
