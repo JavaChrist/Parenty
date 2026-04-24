@@ -1,12 +1,15 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+import { Paperclip, X } from 'lucide-react'
 import { useAddExpense, EXPENSE_CATEGORIES } from '../../hooks/useExpenses'
 import { useChildren } from '../../hooks/useChildren'
 
 const today = () => new Date().toISOString().slice(0, 10)
+const MAX_FILE_MB = 10
 
 export default function AddExpenseForm({ onSuccess, onCancel }) {
   const addExpense = useAddExpense()
   const { data: children = [] } = useChildren()
+  const fileInputRef = useRef(null)
 
   const [form, setForm] = useState({
     description: '',
@@ -15,10 +18,28 @@ export default function AddExpenseForm({ onSuccess, onCancel }) {
     incurred_on: today(),
     child_id: '',
   })
+  const [receiptFile, setReceiptFile] = useState(null)
   const [error, setError] = useState(null)
 
   const update = (key) => (e) =>
     setForm((f) => ({ ...f, [key]: e.target.value }))
+
+  const handleFileChange = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > MAX_FILE_MB * 1024 * 1024) {
+      setError(`Fichier trop volumineux (${MAX_FILE_MB} Mo max).`)
+      e.target.value = ''
+      return
+    }
+    setError(null)
+    setReceiptFile(file)
+  }
+
+  const removeFile = () => {
+    setReceiptFile(null)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
 
   const submit = async (e) => {
     e.preventDefault()
@@ -29,10 +50,17 @@ export default function AddExpenseForm({ onSuccess, onCancel }) {
     if (!amount || amount <= 0) return setError('Le montant doit être supérieur à 0.')
 
     try {
-      await addExpense.mutateAsync(form)
+      await addExpense.mutateAsync({ ...form, receipt_file: receiptFile })
       onSuccess?.()
     } catch (err) {
-      setError(err.message || 'Impossible d\'enregistrer la dépense.')
+      const msg = err?.message || "Impossible d'enregistrer la dépense."
+      if (msg.includes('free_plan_limit_expenses')) {
+        setError(
+          'Plan gratuit limité à 10 dépenses par mois. Passe en Premium pour lever la limite.',
+        )
+      } else {
+        setError(msg)
+      }
     }
   }
 
@@ -125,6 +153,47 @@ export default function AddExpenseForm({ onSuccess, onCancel }) {
           </select>
         </div>
       )}
+
+      <div>
+        <span className="label">Facture ou justificatif (optionnel)</span>
+        <input
+          ref={fileInputRef}
+          id="receipt_file"
+          type="file"
+          accept="image/*,application/pdf"
+          onChange={handleFileChange}
+          className="sr-only"
+        />
+        {!receiptFile ? (
+          <label
+            htmlFor="receipt_file"
+            className="flex items-center gap-sm p-md border border-dashed border-outline rounded-md text-body-md text-on-surface-variant cursor-pointer hover:bg-surface-container-low transition-colors"
+          >
+            <Paperclip size={18} strokeWidth={2} />
+            Ajouter une facture (PDF ou image, {MAX_FILE_MB} Mo max)
+          </label>
+        ) : (
+          <div className="flex items-center gap-sm p-md border border-outline rounded-md bg-surface-container-low">
+            <Paperclip size={18} className="text-primary flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-body-md font-semibold text-on-surface truncate">
+                {receiptFile.name}
+              </p>
+              <p className="text-caption text-on-surface-variant">
+                {(receiptFile.size / 1024).toFixed(0)} Ko
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={removeFile}
+              className="p-1 rounded-full text-on-surface-variant hover:bg-surface-container"
+              aria-label="Retirer la facture"
+            >
+              <X size={18} />
+            </button>
+          </div>
+        )}
+      </div>
 
       {error && (
         <div className="text-body-md text-on-error-container bg-error-container rounded-md p-3">

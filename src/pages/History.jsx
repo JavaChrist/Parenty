@@ -15,6 +15,8 @@ import {
 } from 'lucide-react'
 import { useActivityFeed } from '../hooks/useActivityFeed'
 import { useProfiles } from '../hooks/useProfile'
+import { usePlanLimits } from '../hooks/usePlanLimits'
+import { Crown } from 'lucide-react'
 
 const SOURCE_META = {
   event: {
@@ -95,11 +97,24 @@ function formatTime(iso) {
 export default function History() {
   const [filter, setFilter] = useState('all')
   const { data: entries = [], isLoading, error } = useActivityFeed()
+  const { isPremium, historyMinDate, historyDays } = usePlanLimits()
 
   const filtered = useMemo(() => {
-    if (filter === 'all') return entries
-    return entries.filter((e) => e.source === filter)
-  }, [entries, filter])
+    let list = entries
+    // Plan gratuit : tronquer à 1 an glissant.
+    if (!isPremium && historyMinDate) {
+      const cutoff = historyMinDate.getTime()
+      list = list.filter((e) => new Date(e.at).getTime() >= cutoff)
+    }
+    if (filter === 'all') return list
+    return list.filter((e) => e.source === filter)
+  }, [entries, filter, isPremium, historyMinDate])
+
+  const hiddenCount = useMemo(() => {
+    if (isPremium || !historyMinDate) return 0
+    const cutoff = historyMinDate.getTime()
+    return entries.filter((e) => new Date(e.at).getTime() < cutoff).length
+  }, [entries, isPremium, historyMinDate])
 
   const actorIds = useMemo(
     () => [...new Set(filtered.map((e) => e.actorId).filter(Boolean))],
@@ -173,6 +188,21 @@ export default function History() {
           <HistoryIcon size={32} className="mx-auto mb-sm opacity-60 text-on-surface-variant" />
           <p className="text-body-md text-on-surface-variant">
             Aucune activité pour ce filtre.
+          </p>
+        </div>
+      )}
+
+      {!isPremium && hiddenCount > 0 && (
+        <div className="card p-md bg-tertiary-fixed/50 border border-tertiary/20">
+          <p className="text-body-md text-on-tertiary-fixed-variant">
+            <Crown size={14} className="inline -mt-0.5 mr-1" strokeWidth={2} />
+            Plan gratuit : historique visible sur {historyDays} jours (
+            {hiddenCount} entrée{hiddenCount > 1 ? 's' : ''} plus ancienne
+            {hiddenCount > 1 ? 's' : ''} masquée{hiddenCount > 1 ? 's' : ''}).{' '}
+            <Link to="/profile" className="font-semibold underline">
+              Passe en Premium
+            </Link>{' '}
+            pour tout voir.
           </p>
         </div>
       )}

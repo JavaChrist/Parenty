@@ -25,7 +25,7 @@ export function useExpenses() {
       const { data, error } = await supabase
         .from('expenses')
         .select(
-          'id, description, category, amount_cents, currency, incurred_on, status, reject_reason, payer_id, validated_by, validated_at, created_at, child_id'
+          'id, description, category, amount_cents, currency, incurred_on, status, reject_reason, payer_id, validated_by, validated_at, created_at, child_id, receipt_path',
         )
         .eq('family_id', familyId)
         .order('incurred_on', { ascending: false })
@@ -34,6 +34,18 @@ export function useExpenses() {
       return data
     },
   })
+}
+
+/**
+ * URL signée (5 min) pour consulter/télécharger une facture jointe.
+ */
+export async function getReceiptSignedUrl(path) {
+  if (!path) return null
+  const { data, error } = await supabase.storage
+    .from('documents')
+    .createSignedUrl(path, 300)
+  if (error) throw error
+  return data?.signedUrl ?? null
 }
 
 /**
@@ -48,6 +60,26 @@ export function useAddExpense() {
     mutationFn: async (input) => {
       if (!familyId || !user) throw new Error('Famille introuvable')
 
+      // Upload facture (optionnel) dans le bucket documents.
+      // Convention de path : <family_id>/receipts/<uuid>.<ext> pour rester
+      // aligné avec la policy RLS du bucket (1er segment = family_id).
+      let receiptPath = null
+      if (input.receipt_file instanceof File) {
+        const file = input.receipt_file
+        const ext = (file.name.split('.').pop() || 'bin').toLowerCase()
+        const uuid = crypto.randomUUID()
+        const path = `${familyId}/receipts/${uuid}.${ext}`
+        const { error: upErr } = await supabase.storage
+          .from('documents')
+          .upload(path, file, {
+            cacheControl: '3600',
+            contentType: file.type || 'application/octet-stream',
+            upsert: false,
+          })
+        if (upErr) throw upErr
+        receiptPath = path
+      }
+
       const payload = {
         family_id: familyId,
         child_id: input.child_id || null,
@@ -58,6 +90,7 @@ export function useAddExpense() {
         incurred_on: input.incurred_on,
         payer_id: user.id,
         status: 'pending',
+        receipt_path: receiptPath,
       }
 
       const { data, error } = await supabase
@@ -66,7 +99,14 @@ export function useAddExpense() {
         .select()
         .single()
 
-      if (error) throw error
+      if (error) {
+        // Si l'insert DB échoue, supprimer le fichier uploadé pour ne pas
+        // laisser d'orphelin dans Storage.
+        if (receiptPath) {
+          await supabase.storage.from('documents').remove([receiptPath])
+        }
+        throw error
+      }
       return data
     },
     onSuccess: () => {

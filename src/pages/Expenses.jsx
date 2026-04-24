@@ -10,13 +10,18 @@ import {
   Utensils,
   Gamepad2,
   Wallet,
+  Paperclip,
 } from 'lucide-react'
 import { useAuthStore } from '../stores/authStore'
+import { Link } from 'react-router-dom'
+import { Crown } from 'lucide-react'
 import {
   useExpenses,
   useValidateExpense,
   EXPENSE_CATEGORIES,
+  getReceiptSignedUrl,
 } from '../hooks/useExpenses'
+import { usePlanLimits } from '../hooks/usePlanLimits'
 import Modal from '../components/ui/Modal'
 import AddExpenseForm from '../components/expenses/AddExpenseForm'
 import RejectExpenseForm from '../components/expenses/RejectExpenseForm'
@@ -54,6 +59,12 @@ function sumCurrentMonth(expenses) {
 export default function Expenses() {
   const user = useAuthStore((s) => s.user)
   const { data: expenses = [], isLoading, error } = useExpenses()
+  const {
+    isPremium,
+    atExpenseLimit,
+    expenseCount,
+    expenseLimit,
+  } = usePlanLimits()
 
   const [addOpen, setAddOpen] = useState(false)
   const [rejectingId, setRejectingId] = useState(null)
@@ -87,10 +98,33 @@ export default function Expenses() {
         </div>
       </section>
 
-      <button onClick={() => setAddOpen(true)} className="btn-primary w-full">
+      {!isPremium && (
+        <p className="text-caption text-on-surface-variant text-center">
+          Plan gratuit · {expenseCount} / {expenseLimit} dépenses ce mois-ci
+        </p>
+      )}
+
+      <button
+        onClick={() => setAddOpen(true)}
+        disabled={atExpenseLimit}
+        className="btn-primary w-full disabled:opacity-60 disabled:cursor-not-allowed"
+      >
         <Plus size={18} strokeWidth={2.5} />
         Ajouter une dépense
       </button>
+
+      {atExpenseLimit && (
+        <div className="card p-md bg-tertiary-fixed/50 border border-tertiary/20">
+          <p className="text-body-md text-on-tertiary-fixed-variant">
+            <Crown size={14} className="inline -mt-0.5 mr-1" strokeWidth={2} />
+            Plan gratuit limité à {expenseLimit} dépenses par mois.{' '}
+            <Link to="/profile" className="font-semibold underline">
+              Passe en Premium
+            </Link>{' '}
+            pour lever la limite.
+          </p>
+        </div>
+      )}
 
       <section className="space-y-sm">
         <h2 className="text-label-sm text-on-surface-variant uppercase tracking-wide px-sm">
@@ -203,6 +237,12 @@ function ExpenseRow({ expense, currentUserId, onReject }) {
         </div>
       </div>
 
+      {expense.receipt_path && (
+        <div className="mt-sm pl-[calc(2.75rem+1rem)]">
+          <ReceiptLink path={expense.receipt_path} />
+        </div>
+      )}
+
       {expense.status === 'rejected' && expense.reject_reason && (
         <p className="mt-sm pl-[calc(2.75rem+1rem)] text-caption text-on-error-container bg-error-container rounded-md px-3 py-2">
           Motif : {expense.reject_reason}
@@ -226,5 +266,31 @@ function ExpenseRow({ expense, currentUserId, onReject }) {
         </div>
       )}
     </article>
+  )
+}
+
+function ReceiptLink({ path }) {
+  const [loading, setLoading] = useState(false)
+  const open = async () => {
+    try {
+      setLoading(true)
+      const url = await getReceiptSignedUrl(path)
+      if (url) window.open(url, '_blank', 'noopener,noreferrer')
+    } catch (err) {
+      alert("Impossible d'ouvrir la facture : " + (err?.message ?? 'erreur'))
+    } finally {
+      setLoading(false)
+    }
+  }
+  return (
+    <button
+      type="button"
+      onClick={open}
+      disabled={loading}
+      className="inline-flex items-center gap-1 text-caption text-primary font-semibold hover:underline"
+    >
+      <Paperclip size={14} strokeWidth={2.2} />
+      {loading ? 'Ouverture…' : 'Voir la facture'}
+    </button>
   )
 }

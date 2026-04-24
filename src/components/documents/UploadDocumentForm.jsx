@@ -36,7 +36,14 @@ export default function UploadDocumentForm({ onSuccess, onCancel }) {
       await addDoc.mutateAsync({ file, title, category, child_id: childId })
       onSuccess?.()
     } catch (err) {
-      setError(err.message || 'Erreur lors de l\'upload.')
+      const msg = err?.message || "Erreur lors de l'upload."
+      if (msg.includes('free_plan_limit_documents')) {
+        setError(
+          'Plan gratuit limité à 10 documents. Passe en Premium pour en stocker plus.',
+        )
+      } else {
+        setError(msg)
+      }
     }
   }
 

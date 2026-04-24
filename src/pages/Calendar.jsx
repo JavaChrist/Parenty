@@ -1,9 +1,12 @@
 import { useState, useMemo } from 'react'
-import { Plus, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock, ChevronRight as ChevronRightIcon } from 'lucide-react'
+import { Plus, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock, ChevronRight as ChevronRightIcon, Repeat } from 'lucide-react'
 import { useEventsForMonth, EVENT_KINDS } from '../hooks/useEvents'
+import { useExpandedCustodyEvents } from '../hooks/useCustodySchedules'
 import Modal from '../components/ui/Modal'
 import AddEventForm from '../components/events/AddEventForm'
 import EventDetailModal from '../components/events/EventDetailModal'
+import CustodySchedulesCard from '../components/calendar/CustodySchedulesCard'
+import { custodyColorFor } from '../components/calendar/custodyColors'
 
 const MONTHS = [
   'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
@@ -64,14 +67,25 @@ export default function Calendar() {
 
   const days = useMemo(() => buildMonthGrid(cursor.year, cursor.month), [cursor])
 
+  // Fenêtre couverte par la grille du mois (42 cases, peut déborder).
+  const gridFrom = days[0]
+  const gridTo = days[days.length - 1]
+  const virtualCustodyEvents = useExpandedCustodyEvents(gridFrom, gridTo)
+
   // Vue mensuelle : on ignore les annulés pour ne pas "polluer" les cases.
   // Liste du jour : on les inclut mais avec un style dédié (barré, badge "Annulé").
   const activeEvents = events.filter((e) => !e.cancelled_at)
-  const eventsOnSelected = events
+  // Les événements virtuels (garde récurrente) sont ajoutés à la vue mensuelle
+  // et à la liste du jour, mais en bas (les événements ponctuels priment pour
+  // la couleur de fond du jour).
+
+  const eventsOnSelected = [...events, ...virtualCustodyEvents]
     .filter((e) => overlapsDay(e, selectedDate))
     .sort((a, b) => {
       // Annulés en bas
       if (!!a.cancelled_at !== !!b.cancelled_at) return a.cancelled_at ? 1 : -1
+      // Virtuels en bas des non-annulés
+      if (!!a.is_virtual !== !!b.is_virtual) return a.is_virtual ? 1 : -1
       return new Date(a.starts_at) - new Date(b.starts_at)
     })
 
@@ -124,8 +138,25 @@ export default function Calendar() {
             const inMonth = day.getMonth() === cursor.month
             const isToday = sameDay(day, today)
             const isSelected = sameDay(day, selectedDate)
-            const dayEvents = activeEvents.filter((e) => overlapsDay(e, day))
-            const firstKind = dayEvents[0]?.kind
+            const realDayEvents = activeEvents.filter((e) => overlapsDay(e, day))
+            const virtualDayEvents = virtualCustodyEvents.filter((e) =>
+              overlapsDay(e, day),
+            )
+            const firstKind = realDayEvents[0]?.kind
+            // Si pas d'événement réel, on prend la couleur du parent en garde.
+            const custodyParent = virtualDayEvents[0]?.parent_user_id
+            const custodyColor = custodyParent
+              ? custodyColorFor(custodyParent)
+              : null
+            const totalCount = realDayEvents.length + virtualDayEvents.length
+
+            const bgClass = isSelected
+              ? 'bg-primary text-on-primary font-bold shadow-card scale-105 z-10'
+              : firstKind
+                ? KIND_BG[firstKind]
+                : custodyColor
+                  ? `${custodyColor.bg} ${custodyColor.text}`
+                  : 'hover:bg-surface-container-low'
 
             return (
               <button
@@ -134,18 +165,14 @@ export default function Calendar() {
                 className={[
                   'aspect-square flex flex-col items-center justify-center rounded-lg text-body-md relative transition-all',
                   !inMonth && 'opacity-30',
-                  isSelected
-                    ? 'bg-primary text-on-primary font-bold shadow-card scale-105 z-10'
-                    : firstKind
-                      ? KIND_BG[firstKind]
-                      : 'hover:bg-surface-container-low',
+                  bgClass,
                   isToday && !isSelected && 'ring-2 ring-primary',
                 ].filter(Boolean).join(' ')}
               >
                 <span>{day.getDate()}</span>
-                {dayEvents.length > 1 && !isSelected && (
+                {totalCount > 1 && !isSelected && (
                   <span className="absolute bottom-1 text-[10px] font-semibold opacity-70">
-                    +{dayEvents.length - 1}
+                    +{totalCount - 1}
                   </span>
                 )}
               </button>
@@ -188,6 +215,50 @@ export default function Calendar() {
         )}
 
         {eventsOnSelected.map((e) => {
+          if (e.is_virtual) {
+            const color = custodyColorFor(e.parent_user_id)
+            return (
+              <div
+                key={e.id}
+                className={[
+                  'card p-md flex gap-md items-start border-l-4',
+                  color.border,
+                ].join(' ')}
+              >
+                <div
+                  className={[
+                    'w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0',
+                    color.bg,
+                    color.text,
+                  ].join(' ')}
+                >
+                  <Repeat size={18} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start justify-between gap-2 flex-wrap">
+                    <h3 className="text-body-md font-semibold text-on-surface">
+                      {e.title}
+                    </h3>
+                    <span className="pill-neutral whitespace-nowrap">Récurrent</span>
+                  </div>
+                  <p className="text-caption text-on-surface-variant mt-0.5">
+                    {new Date(e.starts_at).toLocaleString('fr-FR', {
+                      weekday: 'short',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                    {' → '}
+                    {new Date(e.ends_at).toLocaleString('fr-FR', {
+                      weekday: 'short',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </p>
+                </div>
+              </div>
+            )
+          }
+
           const isCancelled = !!e.cancelled_at
           return (
             <button
@@ -256,6 +327,8 @@ export default function Calendar() {
           )
         })}
       </section>
+
+      <CustodySchedulesCard />
 
       {/* CTA */}
       <button onClick={() => setAddOpen(true)} className="btn-primary w-full">

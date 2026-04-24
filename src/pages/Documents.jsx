@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import {
   Search,
   Upload,
@@ -11,6 +12,7 @@ import {
   Folder,
   Download,
   Trash2,
+  Crown,
 } from 'lucide-react'
 import {
   useDocuments,
@@ -18,6 +20,7 @@ import {
   getDocumentSignedUrl,
   DOCUMENT_CATEGORIES,
 } from '../hooks/useDocuments'
+import { usePlanLimits } from '../hooks/usePlanLimits'
 import Modal from '../components/ui/Modal'
 import UploadDocumentForm from '../components/documents/UploadDocumentForm'
 
@@ -48,6 +51,7 @@ function getFileIcon(mime) {
 export default function Documents() {
   const { data: documents = [], isLoading } = useDocuments()
   const deleteDoc = useDeleteDocument()
+  const { isPremium, atDocLimit, docCount, docLimit } = usePlanLimits()
 
   const [q, setQ] = useState('')
   const [categoryFilter, setCategoryFilter] = useState(null)
@@ -127,10 +131,33 @@ export default function Documents() {
         })}
       </section>
 
-      <button onClick={() => setUploadOpen(true)} className="btn-primary w-full">
+      {!isPremium && (
+        <p className="text-caption text-on-surface-variant text-center">
+          Plan gratuit · {docCount} / {docLimit} documents
+        </p>
+      )}
+
+      <button
+        onClick={() => setUploadOpen(true)}
+        disabled={atDocLimit}
+        className="btn-primary w-full disabled:opacity-60 disabled:cursor-not-allowed"
+      >
         <Upload size={18} strokeWidth={2.5} />
         Déposer un document
       </button>
+
+      {atDocLimit && (
+        <div className="card p-md bg-tertiary-fixed/50 border border-tertiary/20">
+          <p className="text-body-md text-on-tertiary-fixed-variant">
+            <Crown size={14} className="inline -mt-0.5 mr-1" strokeWidth={2} />
+            Plan gratuit limité à {docLimit} documents.{' '}
+            <Link to="/profile" className="font-semibold underline">
+              Passe en Premium
+            </Link>{' '}
+            pour stocker plus.
+          </p>
+        </div>
+      )}
 
       <section className="space-y-sm">
         <h2 className="text-label-sm text-on-surface-variant uppercase tracking-wide px-sm">
