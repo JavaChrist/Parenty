@@ -201,26 +201,33 @@ export default function CustodyScheduleForm({ schedule, onSuccess, onCancel }) {
         </p>
       </div>
 
-      <div className="grid grid-cols-2 gap-md">
-        <div>
-          <label className="label" htmlFor="valid_from">Valide à partir du (optionnel)</label>
-          <input
-            id="valid_from"
-            type="date"
-            value={form.valid_from}
-            onChange={update('valid_from')}
-            className="input"
-          />
-        </div>
-        <div>
-          <label className="label" htmlFor="valid_to">Valide jusqu'au (optionnel)</label>
-          <input
-            id="valid_to"
-            type="date"
-            value={form.valid_to}
-            onChange={update('valid_to')}
-            className="input"
-          />
+      <div>
+        <p className="label mb-2">Période de validité (optionnel)</p>
+        <div className="grid grid-cols-2 gap-md">
+          <div>
+            <label className="text-caption text-on-surface-variant" htmlFor="valid_from">
+              À partir du
+            </label>
+            <input
+              id="valid_from"
+              type="date"
+              value={form.valid_from}
+              onChange={update('valid_from')}
+              className="input mt-1"
+            />
+          </div>
+          <div>
+            <label className="text-caption text-on-surface-variant" htmlFor="valid_to">
+              Jusqu'au
+            </label>
+            <input
+              id="valid_to"
+              type="date"
+              value={form.valid_to}
+              onChange={update('valid_to')}
+              className="input mt-1"
+            />
+          </div>
         </div>
       </div>
 

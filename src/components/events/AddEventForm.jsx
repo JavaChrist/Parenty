@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Repeat } from 'lucide-react'
 import { useAddEvent, useUpdateEvent, EVENT_KINDS } from '../../hooks/useEvents'
 import { useChildren } from '../../hooks/useChildren'
 
@@ -71,7 +72,7 @@ export default function AddEventForm({ initialDate, event, onSuccess, onCancel }
           id="title"
           type="text"
           required
-          placeholder="ex : Garde semaine paire"
+          placeholder="ex : RDV orthodontiste"
           value={form.title}
           onChange={update('title')}
           className="input"
@@ -86,6 +87,18 @@ export default function AddEventForm({ initialDate, event, onSuccess, onCancel }
           ))}
         </select>
       </div>
+
+      {form.kind === 'custody' && !isEdit && (
+        <div className="flex items-start gap-2 p-sm rounded-md bg-primary-container/40 text-on-primary-container">
+          <Repeat size={16} className="mt-0.5 flex-shrink-0" strokeWidth={2.2} />
+          <p className="text-caption">
+            Pour une garde qui se répète chaque semaine ou semaine paire/impaire,
+            utilise plutôt la carte <strong>« Schéma de garde »</strong> en bas
+            du calendrier. Ici on saisit une garde ponctuelle (ex : un week-end
+            d'échange).
+          </p>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-md">
         <div>
