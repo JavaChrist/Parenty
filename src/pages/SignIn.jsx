@@ -1,10 +1,12 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Eye, EyeOff } from 'lucide-react'
 import { useAuthStore } from '../stores/authStore'
 
 export default function SignIn() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const redirect = searchParams.get('redirect')
   const signIn = useAuthStore((s) => s.signIn)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -18,7 +20,10 @@ export default function SignIn() {
     setLoading(true)
     try {
       await signIn(email, password)
-      navigate('/')
+      // Si on arrive depuis /invite, on y retourne pour reprendre le flow.
+      // On limite aux URLs internes (commencent par /) pour éviter open redirect.
+      const target = redirect && redirect.startsWith('/') ? redirect : '/'
+      navigate(target, { replace: true })
     } catch (err) {
       const msg = err.message || ''
       if (msg === 'Invalid login credentials') {

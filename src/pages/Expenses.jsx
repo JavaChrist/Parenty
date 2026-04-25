@@ -17,6 +17,7 @@ import {
   Car,
   Gift,
   Baby,
+  Pencil,
 } from 'lucide-react'
 import { useAuthStore } from '../stores/authStore'
 import { Link } from 'react-router-dom'
@@ -33,6 +34,7 @@ import { usePlanLimits } from '../hooks/usePlanLimits'
 import Modal from '../components/ui/Modal'
 import AddExpenseForm from '../components/expenses/AddExpenseForm'
 import RejectExpenseForm from '../components/expenses/RejectExpenseForm'
+import YearlyExpenseChart from '../components/expenses/YearlyExpenseChart'
 
 // Icônes par catégorie BD → composant
 const CATEGORY_ICONS = {
@@ -84,6 +86,7 @@ export default function Expenses() {
 
   const [addOpen, setAddOpen] = useState(false)
   const [rejectingId, setRejectingId] = useState(null)
+  const [editingExpense, setEditingExpense] = useState(null)
 
   const monthExpenses = currentMonthExpenses(expenses)
   const totalMonthCents = monthExpenses.reduce(
@@ -156,6 +159,8 @@ export default function Expenses() {
         </div>
       </section>
 
+      <YearlyExpenseChart />
+
       {!isPremium && (
         <p className="text-caption text-on-surface-variant text-center">
           Plan gratuit · {expenseCount} / {expenseLimit} dépenses ce mois-ci
@@ -214,6 +219,7 @@ export default function Expenses() {
               expense={e}
               currentUserId={user?.id}
               onReject={() => setRejectingId(e.id)}
+              onEdit={() => setEditingExpense(e)}
             />
           ))}
         </div>
@@ -248,11 +254,25 @@ export default function Expenses() {
           />
         )}
       </Modal>
+
+      <Modal
+        open={!!editingExpense}
+        onClose={() => setEditingExpense(null)}
+        title="Modifier la dépense"
+      >
+        {editingExpense && (
+          <AddExpenseForm
+            expense={editingExpense}
+            onSuccess={() => setEditingExpense(null)}
+            onCancel={() => setEditingExpense(null)}
+          />
+        )}
+      </Modal>
     </div>
   )
 }
 
-function ExpenseRow({ expense, currentUserId, onReject }) {
+function ExpenseRow({ expense, currentUserId, onReject, onEdit }) {
   const validate = useValidateExpense()
   const CategoryIcon = CATEGORY_ICONS[expense.category] ?? Wallet
   const status = STATUS_META[expense.status]
@@ -340,6 +360,17 @@ function ExpenseRow({ expense, currentUserId, onReject }) {
           </button>
         </div>
       )}
+
+      <div className="mt-sm pl-[calc(2.75rem+1rem)]">
+        <button
+          type="button"
+          onClick={onEdit}
+          className="inline-flex items-center gap-1 text-caption text-on-surface-variant font-semibold hover:text-on-surface hover:underline"
+        >
+          <Pencil size={12} strokeWidth={2.4} />
+          Modifier
+        </button>
+      </div>
     </article>
   )
 }

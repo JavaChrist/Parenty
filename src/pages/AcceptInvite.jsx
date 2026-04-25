@@ -18,8 +18,44 @@ export default function AcceptInvite() {
   const qc = useQueryClient()
   const accept = useAcceptInvitation()
 
-  const [status, setStatus] = useState('idle') // idle | loading | success | error
+  const [status, setStatus] = useState('idle') // idle | loading | success | error | conflict
   const [message, setMessage] = useState('')
+  const [conflictReason, setConflictReason] = useState(null)
+
+  const runAccept = (force = false) => {
+    setStatus('loading')
+    accept
+      .mutateAsync(force ? { token, force: true } : token)
+      .then((res) => {
+        clearPendingInviteToken()
+        setStatus('success')
+        setMessage(
+          res?.alreadyMember
+            ? 'Tu étais déjà membre de cette famille.'
+            : 'Bienvenue dans la famille !',
+        )
+        qc.invalidateQueries()
+        setTimeout(() => navigate('/', { replace: true }), 1500)
+      })
+      .catch((err) => {
+        // Conflit : déjà dans une autre famille → on propose de la quitter
+        if (err.reason === 'already_in_other_family') {
+          setStatus('conflict')
+          setConflictReason('already_in_other_family')
+          setMessage(err.message)
+          return
+        }
+        // Conflit non résolvable côté user
+        if (err.reason === 'family_has_other_members') {
+          setStatus('error')
+          setConflictReason('family_has_other_members')
+          setMessage(err.message)
+          return
+        }
+        setStatus('error')
+        setMessage(err.message || "Impossible d'accepter l'invitation.")
+      })
+  }
 
   // Dès qu'un token arrive dans l'URL, on le persiste en localStorage.
   // Il servira à reprendre le flow après signup + confirmation email.
@@ -31,29 +67,11 @@ export default function AcceptInvite() {
     if (authLoading) return
     if (!token) {
       setStatus('error')
-      setMessage('Lien d\'invitation invalide.')
+      setMessage("Lien d'invitation invalide.")
       return
     }
     if (!user) return // Affichage du CTA "Se connecter" plus bas
-
-    setStatus('loading')
-    accept
-      .mutateAsync(token)
-      .then((res) => {
-        clearPendingInviteToken()
-        setStatus('success')
-        setMessage(
-          res?.alreadyMember
-            ? 'Tu étais déjà membre de cette famille.'
-            : 'Bienvenue dans la famille !',
-        )
-        qc.invalidateQueries() // refresh tout (family, children, expenses…)
-        setTimeout(() => navigate('/', { replace: true }), 1500)
-      })
-      .catch((err) => {
-        setStatus('error')
-        setMessage(err.message || 'Impossible d\'accepter l\'invitation.')
-      })
+    runAccept(false)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, user, authLoading])
 
@@ -110,6 +128,37 @@ export default function AcceptInvite() {
               </div>
               <h2 className="h-section text-h3">C'est fait !</h2>
               <p className="text-body-md text-on-surface-variant">{message}</p>
+            </div>
+          )}
+
+          {status === 'conflict' && conflictReason === 'already_in_other_family' && (
+            <div className="flex flex-col items-center gap-sm">
+              <div className="h-12 w-12 rounded-full bg-warning-container flex items-center justify-center text-on-warning-container">
+                <XCircle size={28} strokeWidth={2.5} />
+              </div>
+              <h2 className="h-section text-h3">Famille existante</h2>
+              <p className="text-body-md text-on-surface-variant">
+                {message}
+              </p>
+              <p className="text-caption text-on-surface-variant/80 mt-2">
+                Toutes les données de ta famille actuelle (enfants, dépenses,
+                événements…) seront supprimées définitivement.
+              </p>
+              <div className="flex flex-col gap-sm w-full mt-md">
+                <button
+                  type="button"
+                  onClick={() => runAccept(true)}
+                  className="btn-primary w-full"
+                  disabled={accept.isPending}
+                >
+                  {accept.isPending
+                    ? 'Migration en cours…'
+                    : 'Quitter et rejoindre cette famille'}
+                </button>
+                <Link to="/" className="btn-secondary w-full">
+                  Annuler
+                </Link>
+              </div>
             </div>
           )}
 

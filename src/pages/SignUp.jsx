@@ -49,7 +49,13 @@ export default function SignUp() {
         navigate('/onboarding/child')
       }
     } catch (err) {
-      setError(err.message || 'Une erreur est survenue.')
+      // Cas spécifique : email déjà enregistré → on propose de basculer sur
+      // la page de connexion plutôt que d'afficher une erreur sèche.
+      if (err.code === 'email_already_registered') {
+        setError('email_already_registered')
+      } else {
+        setError(err.message || 'Une erreur est survenue.')
+      }
     } finally {
       setLoading(false)
     }
@@ -143,11 +149,33 @@ export default function SignUp() {
             </span>
           </label>
 
-          {error && (
+          {error === 'email_already_registered' ? (
+            <div className="text-body-md text-on-error-container bg-error-container rounded-md p-3 space-y-2">
+              <p>
+                Un compte existe déjà avec <strong>{email}</strong>. Pas
+                besoin d'en créer un nouveau.
+              </p>
+              <div className="flex flex-col gap-1">
+                <Link
+                  to={
+                    inviteToken
+                      ? `/signin?redirect=/invite?token=${inviteToken}`
+                      : '/signin'
+                  }
+                  className="font-semibold underline"
+                >
+                  Me connecter avec cet email
+                </Link>
+                <Link to="/forgot-password" className="font-semibold underline">
+                  J'ai oublié mon mot de passe
+                </Link>
+              </div>
+            </div>
+          ) : error ? (
             <div className="text-body-md text-on-error-container bg-error-container rounded-md p-3">
               {error}
             </div>
-          )}
+          ) : null}
 
           <button type="submit" disabled={loading} className="btn-primary w-full">
             {loading ? 'Création…' : 'Créer mon compte'}

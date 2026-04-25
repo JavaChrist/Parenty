@@ -49,6 +49,21 @@ export const useAuthStore = create((set, get) => ({
   signUp: async (email, password) => {
     const { data, error } = await supabase.auth.signUp({ email, password })
     if (error) throw error
+
+    // Piège Supabase : si l'email est déjà enregistré, l'API renvoie 200 OK
+    // avec un user "fantôme" (identities = []) au lieu d'une erreur, par
+    // mesure anti-énumération. Sans détection, on créerait un compte
+    // factice + un nouveau mot de passe non-fonctionnel. On lève donc une
+    // erreur explicite pour rediriger l'user vers Sign in / Forgot password.
+    const identities = data?.user?.identities
+    if (Array.isArray(identities) && identities.length === 0) {
+      const err = new Error(
+        'Un compte existe déjà avec cet email. Connecte-toi ou réinitialise ton mot de passe.',
+      )
+      err.code = 'email_already_registered'
+      throw err
+    }
+
     return data
   },
 

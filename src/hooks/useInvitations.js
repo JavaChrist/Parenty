@@ -82,9 +82,11 @@ export function useInviteCoParent() {
       })
 
       if (error) {
-        const realMessage = await extractFunctionErrorMessage(error)
+        const extracted = await extractFunctionErrorPayload(error)
         throw new Error(
-          realMessage || error.message || "Échec de l'envoi de l'invitation.",
+          extracted?.error ||
+            error.message ||
+            "Échec de l'envoi de l'invitation.",
         )
       }
       if (data?.error) throw new Error(data.error)
@@ -110,41 +112,82 @@ export function useInviteCoParent() {
 /**
  * Accepte une invitation : marque l'invitation comme acceptée
  * ET insère family_members pour le user courant.
- * NOTE : l'insert family_members est refusé par la RLS côté client.
- * On doit passer par une Edge Function "accept-invite" qui tourne en service_role.
+ *
+ * Paramètres : { token, force? }
+ *   - force=true : si le user a déjà sa propre famille (seul membre),
+ *     elle sera supprimée pour rejoindre celle qui invite.
+ *
+ * Erreurs métier : on lance un Error enrichi (`err.reason`,
+ * `err.currentFamilyId`) pour que l'UI puisse proposer un parcours
+ * "Quitter ma famille pour rejoindre celle-ci".
  */
 export function useAcceptInvitation() {
   const user = useAuthStore((s) => s.user)
 
   return useMutation({
-    mutationFn: async (token) => {
-      if (!user) throw new Error('Tu dois te connecter pour accepter une invitation.')
+    mutationFn: async (input) => {
+      if (!user)
+        throw new Error('Tu dois te connecter pour accepter une invitation.')
+      const token = typeof input === 'string' ? input : input?.token
+      const force = typeof input === 'object' ? !!input?.force : false
       if (!token) throw new Error('Token manquant.')
 
       const { data, error } = await supabase.functions.invoke('accept-invite', {
-        body: { token },
+        body: { token, force },
       })
 
-      // Quand la fonction renvoie un non-2xx, supabase-js remplit `error` avec un
-      // FunctionsHttpError dont le `.message` est générique ("Edge Function
-      // returned a non-2xx status code"). Le vrai message métier est dans
-      // `error.context.response` (Response native) → on le récupère manuellement.
       if (error) {
-        const realMessage = await extractFunctionErrorMessage(error)
-        throw new Error(realMessage || error.message || "Échec de l'invitation.")
+        const extracted = await extractFunctionErrorPayload(error)
+        const message =
+          extracted?.error ||
+          error.message ||
+          "Échec de l'invitation."
+        const enriched = new Error(message)
+        if (extracted?.reason) enriched.reason = extracted.reason
+        if (extracted?.currentFamilyId)
+          enriched.currentFamilyId = extracted.currentFamilyId
+        throw enriched
       }
-      if (data?.error) throw new Error(data.error)
+      if (data?.error) {
+        const enriched = new Error(data.error)
+        if (data.reason) enriched.reason = data.reason
+        if (data.currentFamilyId) enriched.currentFamilyId = data.currentFamilyId
+        throw enriched
+      }
       return data
     },
   })
 }
 
-async function extractFunctionErrorMessage(error) {
+/**
+ * Extrait le payload JSON d'une FunctionsHttpError pour récupérer
+ * { error, reason, currentFamilyId, ... } envoyés par la fonction Edge.
+ *
+ * Selon la version de supabase-js, `error.context` peut être :
+ *   - directement un Response (clones supportés)
+ *   - un objet { response: Response, body, ... }
+ *   - un body déjà parsé
+ */
+async function extractFunctionErrorPayload(error) {
   try {
-    const response = error?.context?.response
-    if (!response || typeof response.json !== 'function') return null
-    const body = await response.clone().json()
-    return body?.error || null
+    const ctx = error?.context
+    if (!ctx) return null
+
+    if (typeof ctx === 'object' && ctx.body && typeof ctx.body === 'object') {
+      return ctx.body
+    }
+
+    const response =
+      ctx instanceof Response ? ctx : (ctx.response ?? null)
+    if (!response || typeof response.clone !== 'function') return null
+
+    const text = await response.clone().text()
+    if (!text) return null
+    try {
+      return JSON.parse(text)
+    } catch {
+      return { error: text.slice(0, 300) }
+    }
   } catch {
     return null
   }

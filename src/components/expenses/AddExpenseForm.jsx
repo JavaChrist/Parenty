@@ -1,25 +1,73 @@
 import { useRef, useState } from 'react'
 import { Paperclip, X } from 'lucide-react'
-import { useAddExpense, EXPENSE_CATEGORIES } from '../../hooks/useExpenses'
+import {
+  useAddExpense,
+  useUpdateExpense,
+  EXPENSE_CATEGORIES,
+} from '../../hooks/useExpenses'
 import { useChildren } from '../../hooks/useChildren'
 
 const today = () => new Date().toISOString().slice(0, 10)
 const MAX_FILE_MB = 10
 
-export default function AddExpenseForm({ onSuccess, onCancel }) {
+const SHARE_MODES = [
+  { id: '5050', label: '50 / 50' },
+  { id: 'all_me', label: '100% à ma charge' },
+  { id: 'all_other', label: '100% au co-parent' },
+  { id: 'custom_pct', label: '% personnalisé' },
+  { id: 'custom_amount', label: '€ personnalisé' },
+]
+
+/**
+ * Détecte le mode de partage initial à partir d'une dépense existante.
+ * Mappe vers un des SHARE_MODES.id pour pré-sélectionner le bouton.
+ */
+function detectShareMode(expense) {
+  if (!expense) return '5050'
+  if (expense.share_payer_cents != null) return 'custom_amount'
+  const pct = Number(expense.share_payer_pct ?? 50)
+  if (pct === 50) return '5050'
+  if (pct === 100) return 'all_me'
+  if (pct === 0) return 'all_other'
+  return 'custom_pct'
+}
+
+/**
+ * Formulaire dual création / édition d'une dépense.
+ *
+ *  - Si `expense` est fourni → mode édition (update). Le payeur est immuable.
+ *  - Sinon → mode création (insert).
+ *
+ * Le partage peut être saisi en %, en € absolu, ou via 3 raccourcis.
+ */
+export default function AddExpenseForm({ expense, onSuccess, onCancel }) {
+  const isEdit = !!expense
   const addExpense = useAddExpense()
+  const updateExpense = useUpdateExpense()
   const { data: children = [] } = useChildren()
   const fileInputRef = useRef(null)
 
+  const initialAmount = expense
+    ? (expense.amount_cents / 100).toFixed(2)
+    : ''
+  const initialPct = expense
+    ? Number(expense.share_payer_pct ?? 50)
+    : 50
+  const initialShareAmount =
+    expense?.share_payer_cents != null
+      ? (expense.share_payer_cents / 100).toFixed(2)
+      : ''
+
   const [form, setForm] = useState({
-    description: '',
-    category: 'other',
-    amount: '',
-    incurred_on: today(),
-    child_id: '',
-    share_payer_pct: 50,
+    description: expense?.description ?? '',
+    category: expense?.category ?? 'other',
+    amount: initialAmount,
+    incurred_on: expense?.incurred_on ?? today(),
+    child_id: expense?.child_id ?? '',
+    share_payer_pct: initialPct,
+    share_payer_amount: initialShareAmount,
   })
-  const [shareMode, setShareMode] = useState('5050')
+  const [shareMode, setShareMode] = useState(detectShareMode(expense))
   const [receiptFile, setReceiptFile] = useState(null)
   const [error, setError] = useState(null)
 
@@ -28,9 +76,12 @@ export default function AddExpenseForm({ onSuccess, onCancel }) {
 
   const selectShareMode = (mode) => {
     setShareMode(mode)
-    if (mode === '5050') setForm((f) => ({ ...f, share_payer_pct: 50 }))
-    else if (mode === 'all_me') setForm((f) => ({ ...f, share_payer_pct: 100 }))
-    else if (mode === 'all_other') setForm((f) => ({ ...f, share_payer_pct: 0 }))
+    setForm((f) => {
+      if (mode === '5050') return { ...f, share_payer_pct: 50 }
+      if (mode === 'all_me') return { ...f, share_payer_pct: 100 }
+      if (mode === 'all_other') return { ...f, share_payer_pct: 0 }
+      return f
+    })
   }
 
   const updateCustomPct = (e) => {
@@ -40,10 +91,21 @@ export default function AddExpenseForm({ onSuccess, onCancel }) {
     setForm((f) => ({ ...f, share_payer_pct: v }))
   }
 
-  // Aperçu du partage en temps réel
+  const updateCustomAmount = (e) => {
+    setForm((f) => ({ ...f, share_payer_amount: e.target.value }))
+  }
+
+  // Aperçu du partage en temps réel (centimes)
   const amountCents = Math.round(Number(form.amount || 0) * 100)
-  const myCents = Math.round((amountCents * Number(form.share_payer_pct)) / 100)
-  const otherCents = amountCents - myCents
+  let myCents = 0
+  if (shareMode === 'custom_amount') {
+    myCents = Math.round(Number(form.share_payer_amount || 0) * 100)
+    if (myCents < 0) myCents = 0
+    if (myCents > amountCents) myCents = amountCents
+  } else {
+    myCents = Math.round((amountCents * Number(form.share_payer_pct)) / 100)
+  }
+  const otherCents = Math.max(0, amountCents - myCents)
 
   const handleFileChange = (e) => {
     const file = e.target.files?.[0]
@@ -67,11 +129,28 @@ export default function AddExpenseForm({ onSuccess, onCancel }) {
     setError(null)
 
     const amount = Number(form.amount)
-    if (!form.description.trim()) return setError('Donne un libellé à la dépense.')
-    if (!amount || amount <= 0) return setError('Le montant doit être supérieur à 0.')
+    if (!form.description.trim())
+      return setError('Donne un libellé à la dépense.')
+    if (!amount || amount <= 0)
+      return setError('Le montant doit être supérieur à 0.')
+
+    const payload = {
+      description: form.description,
+      category: form.category,
+      amount: form.amount,
+      incurred_on: form.incurred_on,
+      child_id: form.child_id,
+      share_mode: shareMode === 'custom_amount' ? 'amount' : 'pct',
+      share_payer_pct: form.share_payer_pct,
+      share_payer_amount: form.share_payer_amount,
+    }
 
     try {
-      await addExpense.mutateAsync({ ...form, receipt_file: receiptFile })
+      if (isEdit) {
+        await updateExpense.mutateAsync({ id: expense.id, patch: payload })
+      } else {
+        await addExpense.mutateAsync({ ...payload, receipt_file: receiptFile })
+      }
       onSuccess?.()
     } catch (err) {
       const msg = err?.message || "Impossible d'enregistrer la dépense."
@@ -84,6 +163,8 @@ export default function AddExpenseForm({ onSuccess, onCancel }) {
       }
     }
   }
+
+  const isPending = isEdit ? updateExpense.isPending : addExpense.isPending
 
   return (
     <form onSubmit={submit} className="space-y-md">
@@ -178,12 +259,7 @@ export default function AddExpenseForm({ onSuccess, onCancel }) {
       <div>
         <span className="label">Partage avec le co-parent</span>
         <div className="grid grid-cols-2 gap-1 mt-1">
-          {[
-            { id: '5050', label: '50 / 50' },
-            { id: 'all_me', label: '100% à ma charge' },
-            { id: 'all_other', label: '100% au co-parent' },
-            { id: 'custom', label: 'Personnalisé' },
-          ].map((opt) => (
+          {SHARE_MODES.map((opt) => (
             <button
               key={opt.id}
               type="button"
@@ -199,7 +275,8 @@ export default function AddExpenseForm({ onSuccess, onCancel }) {
             </button>
           ))}
         </div>
-        {shareMode === 'custom' && (
+
+        {shareMode === 'custom_pct' && (
           <div className="mt-sm flex items-center gap-md">
             <label
               htmlFor="share_payer_pct"
@@ -221,6 +298,30 @@ export default function AddExpenseForm({ onSuccess, onCancel }) {
             <span className="text-body-md text-on-surface-variant">%</span>
           </div>
         )}
+
+        {shareMode === 'custom_amount' && (
+          <div className="mt-sm flex items-center gap-md">
+            <label
+              htmlFor="share_payer_amount"
+              className="text-body-md text-on-surface-variant whitespace-nowrap"
+            >
+              Ma part :
+            </label>
+            <input
+              id="share_payer_amount"
+              type="number"
+              min="0"
+              step="0.01"
+              placeholder="0,00"
+              value={form.share_payer_amount}
+              onChange={updateCustomAmount}
+              className="input w-32"
+              inputMode="decimal"
+            />
+            <span className="text-body-md text-on-surface-variant">€</span>
+          </div>
+        )}
+
         {amountCents > 0 && (
           <p className="text-caption text-on-surface-variant mt-2">
             Toi : <strong>{(myCents / 100).toFixed(2)} €</strong>
@@ -230,46 +331,55 @@ export default function AddExpenseForm({ onSuccess, onCancel }) {
         )}
       </div>
 
-      <div>
-        <span className="label">Facture ou justificatif (optionnel)</span>
-        <input
-          ref={fileInputRef}
-          id="receipt_file"
-          type="file"
-          accept="image/*,application/pdf"
-          onChange={handleFileChange}
-          className="sr-only"
-        />
-        {!receiptFile ? (
-          <label
-            htmlFor="receipt_file"
-            className="flex items-center gap-sm p-md border border-dashed border-outline rounded-md text-body-md text-on-surface-variant cursor-pointer hover:bg-surface-container-low transition-colors"
-          >
-            <Paperclip size={18} strokeWidth={2} />
-            Ajouter une facture (PDF ou image, {MAX_FILE_MB} Mo max)
-          </label>
-        ) : (
-          <div className="flex items-center gap-sm p-md border border-outline rounded-md bg-surface-container-low">
-            <Paperclip size={18} className="text-primary flex-shrink-0" />
-            <div className="flex-1 min-w-0">
-              <p className="text-body-md font-semibold text-on-surface truncate">
-                {receiptFile.name}
-              </p>
-              <p className="text-caption text-on-surface-variant">
-                {(receiptFile.size / 1024).toFixed(0)} Ko
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={removeFile}
-              className="p-1 rounded-full text-on-surface-variant hover:bg-surface-container"
-              aria-label="Retirer la facture"
+      {!isEdit && (
+        <div>
+          <span className="label">Facture ou justificatif (optionnel)</span>
+          <input
+            ref={fileInputRef}
+            id="receipt_file"
+            type="file"
+            accept="image/*,application/pdf"
+            onChange={handleFileChange}
+            className="sr-only"
+          />
+          {!receiptFile ? (
+            <label
+              htmlFor="receipt_file"
+              className="flex items-center gap-sm p-md border border-dashed border-outline rounded-md text-body-md text-on-surface-variant cursor-pointer hover:bg-surface-container-low transition-colors"
             >
-              <X size={18} />
-            </button>
-          </div>
-        )}
-      </div>
+              <Paperclip size={18} strokeWidth={2} />
+              Ajouter une facture (PDF ou image, {MAX_FILE_MB} Mo max)
+            </label>
+          ) : (
+            <div className="flex items-center gap-sm p-md border border-outline rounded-md bg-surface-container-low">
+              <Paperclip size={18} className="text-primary flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-body-md font-semibold text-on-surface truncate">
+                  {receiptFile.name}
+                </p>
+                <p className="text-caption text-on-surface-variant">
+                  {(receiptFile.size / 1024).toFixed(0)} Ko
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={removeFile}
+                className="p-1 rounded-full text-on-surface-variant hover:bg-surface-container"
+                aria-label="Retirer la facture"
+              >
+                <X size={18} />
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {isEdit && expense.receipt_path && (
+        <p className="text-caption text-on-surface-variant">
+          Une facture est déjà attachée. La modification de la pièce jointe
+          n'est pas encore disponible.
+        </p>
+      )}
 
       {error && (
         <div className="text-body-md text-on-error-container bg-error-container rounded-md p-3">
@@ -283,10 +393,16 @@ export default function AddExpenseForm({ onSuccess, onCancel }) {
         </button>
         <button
           type="submit"
-          disabled={addExpense.isPending}
+          disabled={isPending}
           className="btn-primary flex-1"
         >
-          {addExpense.isPending ? 'Enregistrement…' : 'Enregistrer'}
+          {isPending
+            ? isEdit
+              ? 'Enregistrement…'
+              : 'Création…'
+            : isEdit
+              ? 'Enregistrer'
+              : 'Créer la dépense'}
         </button>
       </div>
     </form>
