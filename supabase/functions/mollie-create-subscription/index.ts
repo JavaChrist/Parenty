@@ -103,6 +103,13 @@ serve(async (req) => {
     }
 
     // 2. First payment (sequenceType=first → crée le mandat)
+    // NOTE: on génère d'abord un id de paiement local pour pouvoir le passer
+    // dans le redirectUrl, mais Mollie crée son propre id → on construit le
+    // redirectUrl en deux étapes : on crée le paiement avec un placeholder,
+    // puis on n'a pas besoin de mettre à jour car Mollie supporte le pattern
+    // {id} dans redirectUrl. Concrètement on injecte ?payment_id=ID après.
+    // Mollie ne réécrit pas l'URL, donc la stratégie la plus simple est de
+    // créer le paiement, puis de PATCHer le redirectUrl avec son id.
     const webhookUrl = resolveWebhookUrl()
     const payment = await mollieFetch(mollieKey, 'POST', '/payments', {
       amount: { currency: PLAN.currency, value: PLAN.amount },
@@ -117,6 +124,23 @@ serve(async (req) => {
         kind: 'first_payment',
       },
     })
+
+    // Mollie autorise PATCH du redirectUrl tant que le paiement est en statut
+    // open. On y ajoute le payment_id pour pouvoir interroger son statut au
+    // retour de l'utilisateur (paid / canceled / expired / failed).
+    if (payment?.id) {
+      try {
+        await mollieFetch(mollieKey, 'PATCH', `/payments/${payment.id}`, {
+          redirectUrl: `${appUrl}/subscribe/success?payment_id=${payment.id}`,
+        })
+        if (payment._links?.checkout?.href) {
+          // Le checkoutUrl reste valide, pas besoin de le re-récupérer.
+        }
+      } catch (patchErr) {
+        // Non bloquant : on tombe en mode legacy (sans payment_id).
+        console.warn('[mollie-create-subscription] patch redirectUrl failed', patchErr)
+      }
+    }
 
     const checkoutUrl = payment?._links?.checkout?.href
     if (!checkoutUrl) {

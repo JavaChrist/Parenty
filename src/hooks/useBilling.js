@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 
 /**
@@ -51,6 +51,37 @@ export function useCancelSubscription() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['family'] })
+    },
+  })
+}
+
+/**
+ * Récupère le statut d'un paiement Mollie (utilisé sur /subscribe/success).
+ *
+ * Statuts retournés par Mollie :
+ *   - paid                 → succès, le webhook va activer la famille
+ *   - open / pending       → pas encore terminé (banque, virement…)
+ *   - canceled / expired   → l'utilisateur a abandonné
+ *   - failed               → échec côté banque
+ *   - authorized           → cas rare (pré-autorisation), traité comme pending
+ */
+export function useMolliePaymentStatus(paymentId) {
+  return useQuery({
+    queryKey: ['mollie-payment-status', paymentId],
+    enabled: !!paymentId,
+    staleTime: 0,
+    refetchOnWindowFocus: false,
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke(
+        'mollie-payment-status',
+        { body: { payment_id: paymentId } },
+      )
+      if (error) {
+        const real = await extractFunctionErrorMessage(error)
+        throw new Error(real || error.message || 'Impossible de lire le statut du paiement.')
+      }
+      if (data?.error) throw new Error(data.error)
+      return data
     },
   })
 }
