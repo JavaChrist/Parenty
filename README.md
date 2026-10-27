@@ -1,273 +1,251 @@
 # Parenty
 
-> Organisation parentale partagée, simple et factuelle.
+Application web installable (PWA) pour l’organisation parentale partagée. Deux adultes d’une même famille y retrouvent l’agenda, les gardes, les dépenses, les documents et une messagerie, avec un historique daté.
 
-PWA destinée aux parents séparés ou divorcés. L'application centralise les informations liées aux enfants (garde, événements, dépenses, documents, communication) dans un espace neutre, factuel et partagé. **Aucune vocation de médiation ou de conseil juridique.**
+Parenty s’adresse à des personnes majeures qui organisent le quotidien d’un ou plusieurs enfants, qu’elles soient séparées ou non. Les conditions d’utilisation précisent que l’historique est une mémoire partagée, et non un outil de surveillance ni une preuve destinée à une procédure.
+
+Version indiquée dans le projet : **0.1.0**. La mise en ligne effective reste **à confirmer** : la configuration de déploiement et l’adresse citée dans les mentions légales ne prouvent pas que le site répond.
+
+## Fonctionnalités
+
+### Opérationnelles dans le code
+
+Ces écrans et règles sont branchés sur Supabase (données, droits d’accès, fichiers ou fonctions serveur). Ils fonctionnent une fois le projet Supabase configuré et les migrations appliquées.
+
+**Compte et famille**
+
+- Inscription et connexion par e-mail et mot de passe.
+- Mot de passe oublié et réinitialisation, avec redirection dédiée si le lien de récupération arrive sur une autre page.
+- Premier parcours : création de la famille et du premier enfant, puis invitation du co-parent (étape que l’on peut quitter).
+- Invitation par e-mail, lien valable 7 jours, page publique `/invite?token=…`. Si l’envoi d’e-mail échoue, l’application propose le lien à copier. Une personne qui a déjà sa propre famille seule peut la quitter pour rejoindre celle qui l’invite.
+- Profil : prénom, nom, téléphone, photo (recadrage carré, 512 px). Changement d’e-mail avec confirmation. Changement de mot de passe après vérification du mot de passe actuel.
+- Un compte n’appartient qu’à une famille. Rôles `owner` et `parent`.
+- Enfant retirable de la liste (masquage en base, la ligne n’est pas effacée).
+
+**Agenda**
+
+- Calendrier mensuel et liste du jour.
+- Événements : garde, vacances, école, santé, autre. Création, modification, annulation avec motif. Un événement annulé reste visible, barré. Aucune suppression.
+- Chaque changement est enregistré dans un historique (auteur, action, état).
+- Schémas de garde récurrents : chaque semaine, ou une semaine sur deux (semaines paires ou impaires), avec horaires et parent responsable. L’agenda les affiche comme des événements calculés à l’écran, sans les recopier un par un en base. Un schéma peut être modifié ou retiré de l’affichage.
+
+**Dépenses**
+
+- Saisie avec montant, date, catégorie, enfant facultatif et justificatif (image ou PDF, 10 Mo max).
+- Catégories : école, sortie scolaire, santé, vêtements, alimentation, loisirs, sport, vacances, transport, cadeaux, garde d’enfants, autre.
+- Partage : moitié-moitié, tout à la charge du payeur, tout à la charge du co-parent, pourcentage libre ou montant libre en euros.
+- L’autre parent valide ou refuse. Un refus exige un motif. Le payeur ne peut pas valider sa propre dépense (règle en base).
+- Une dépense peut être corrigée ensuite. Le payeur d’origine ne change pas. Le statut n’est pas modifié par cette correction.
+- Total du mois, « tu as payé », « ta part », et solde envers le co-parent, calculé sur les dépenses validées du mois. Le calcul est prévu pour deux parents.
+- Graphique annuel des montants payés et des parts, hors dépenses refusées (les dépenses en attente y sont incluses).
+
+**Documents**
+
+- Dépôt de PDF et d’images, avec catégorie (école, santé, administratif, légal, autre) et enfant facultatif.
+- Consultation par lien temporaire (60 secondes). Le retrait masque le document et supprime le fichier stocké. La ligne reste en base.
+
+**Messagerie**
+
+- Fil de messages entre les membres de la famille, mis à jour à l’arrivée d’un nouveau message.
+- Pièces jointes : images, PDF, documents bureautique, texte et CSV (20 Mo max). Aperçu des images, lien temporaire d’une heure pour le téléchargement.
+- Les messages ne se modifient pas et ne se suppriment pas. L’ouverture de la messagerie marque les messages reçus comme lus. Un badge indique les non-lus.
+
+**Accueil, historique et synchronisation**
+
+- Accueil : salutation, prochain événement, nombre de dépenses à valider, nombre de documents, nombre d’enfants, et cinq éléments récents (dépenses, documents, événements à venir).
+- Cloche du bandeau : dépenses en attente de validation par l’autre parent, plus messages non lus. Au-delà de 9, l’affichage indique « 9+ ».
+- Page Historique : journal des changements d’événements, de dépenses et de documents, filtré et regroupé par jour. Chaque source est limitée aux 100 derniers enregistrements.
+- Les événements, dépenses et documents de l’autre parent rafraîchissent les écrans ouverts, sans rechargement manuel.
+
+**Abonnement**
+
+- Plan gratuit par défaut. Parenty Premium est codé à **6,99 € TTC par mois**, sans période d’essai, payable via Mollie.
+- Le gratuit est limité, dans l’interface et en base, à **1 enfant**, **10 documents actifs** et **10 dépenses par mois** (hors dépenses refusées). L’historique affiché est limité à **1 an** : ce filtre est appliqué à l’écran, pas par la base.
+- Premium lève ces plafonds. Le propriétaire du compte familial peut résilier. L’accès payant reste indiqué jusqu’à la date de fin de période renvoyée par le paiement.
+- Parcours : paiement Mollie, retour sur `/subscribe/success`, activation par le webhook, historique des paiements sur `/billing`.
+- Le texte des CGV ne mentionne que la limite d’un enfant. L’application applique aussi les plafonds de documents, de dépenses et d’historique.
+
+**Autres écrans**
+
+- Pages publiques : mentions légales, confidentialité, CGU, CGV.
+- Page `/install` : QR code et mode d’emploi pour installer l’application sur Android ou iPhone, y compris une version imprimable.
+- Application installable, avec un bandeau lorsqu’une nouvelle version est prête.
+- Si le chargement dépasse cinq secondes, un bouton permet de réinitialiser l’application locale (déconnexion comprise).
+
+### Partielles
+
+- L’historique ne pagine pas : au-delà de 100 lignes par source, les plus anciennes ne sont pas chargées.
+- La limite d’un an du plan gratuit ne s’applique qu’à cet historique déjà chargé.
+- Le fil de l’accueil reprend des éléments courants. Le journal complet est la page Historique.
+- La messagerie écoute les nouveaux messages. Le passage en « lu » n’est pas diffusé en temps réel par ce même canal.
+- Les schémas de garde n’ont pas de gestion d’exceptions (un jour férié ou un échange ponctuel se saisit comme un événement à part).
+- Le service worker met en cache l’interface. Les appels à Supabase (connexion, données, fichiers) ne sont pas mis en cache : les données demandent une connexion.
+- Le script `npm run sb:deploy` ne déploie que les fonctions d’invitation. Les fonctions Mollie se déploient à part.
+- La configuration locale Supabase désactive la confirmation d’e-mail à l’inscription. Le réglage du projet distant est **à confirmer**.
+- La région de stockage « Francfort » est indiquée dans les mentions légales. Elle n’est pas fixée dans les fichiers de configuration du dépôt.
+
+### Simulées
+
+- Sur l’accueil, la carte « Messages » affiche un tiret et le mot « bientôt ». Le vrai compteur de non-lus est le badge de la messagerie et la cloche.
+- Le bouton emoji de la messagerie est affiché et désactivé, avec le libellé « bientôt ».
+- La ligne « Notifications » du profil affiche « À venir » et n’ouvre aucun réglage.
+
+### Prévues ou absentes du code
+
+Indiquées dans l’interface, sans écran derrière :
+
+- réglages de notifications ;
+- sélecteur d’emoji ;
+- compteur de messages sur l’accueil ;
+- pagination de l’historique ;
+- exceptions sur un schéma de garde.
+
+Absentes du code (elles figuraient dans une version antérieure de ce document) : export PDF, notifications push, accès médiateur, plusieurs familles par compte, recherche dans la messagerie, réactions aux messages.
 
 ## Stack
 
-- **Frontend** : React 18 + Vite + Tailwind CSS + PWA
-- **Routing** : React Router v6
-- **État** : Zustand (auth) + TanStack Query (données serveur, realtime)
-- **Backend** : Supabase (Auth, Postgres + RLS, Storage, Realtime, Edge Functions)
-- **Emails transactionnels** : Resend (invitation co-parent, via Edge Function `invite-parent`)
-- **Paiement** : Mollie — abonnement **Parenty Premium** 6,99 €/mois sans engagement
-- **Hébergement** : Vercel (front) + Supabase (données, région Francfort UE)
+- Interface : React 18, Vite, Tailwind CSS, PWA (`vite-plugin-pwa`)
+- Navigation : React Router 6
+- État : Zustand pour la session, TanStack Query pour les données
+- Données : Supabase (Auth, Postgres avec règles d’accès par famille, Storage, Realtime, Edge Functions)
+- E-mails d’invitation : Resend, appelé par la fonction `invite-parent`
+- Paiement : Mollie
+- Fichiers prévus pour l’hébergement de l’interface : `vercel.json` (reprise de toutes les adresses vers `index.html`)
+- Police : Manrope (Google Fonts)
 
-## Démarrage
+## Installation
 
 ```bash
-# 1. Installer les dépendances
 npm install
-
-# 2. Configurer l'environnement
 cp .env.example .env.local
-# Renseigner VITE_SUPABASE_URL et VITE_SUPABASE_ANON_KEY
-
-# 3. Lancer le dev server
 npm run dev
 ```
 
-## Configuration Supabase
+Le serveur de développement écoute le port **5173**. Renseigner les variables ci-dessous avant de lancer l’application : sans elles, le client Supabase ne peut pas démarrer.
 
-1. Crée un projet Supabase (région : UE — Frankfurt ou Paris).
-2. Applique les migrations SQL **dans l'ordre** depuis le SQL Editor ou via `supabase db push` :
-   ```
-   supabase/migrations/20260421000001_initial_schema.sql
-   supabase/migrations/20260421000002_rls_policies.sql
-   supabase/migrations/20260422000003_storage_documents.sql
-   supabase/migrations/20260422000004_messages.sql
-   supabase/migrations/20260422000005_profiles_and_avatars.sql
-   supabase/migrations/20260422000006_message_attachments.sql
-   supabase/migrations/20260422000007_user_deletion_cascade.sql
-   supabase/migrations/20260423000001_realtime_shared_tables.sql
-   supabase/migrations/20260423000002_bootstrap_family_rpc.sql
-   supabase/migrations/20260423000003_mollie_billing.sql
-   supabase/migrations/20260423000004_free_plan_children_limit.sql
-   ```
-3. Déploie les edge functions :
-   ```bash
-   supabase functions deploy invite-parent
-   supabase functions deploy accept-invite
-   supabase functions deploy mollie-create-subscription
-   supabase functions deploy mollie-webhook --no-verify-jwt
-   supabase functions deploy mollie-cancel-subscription
-   ```
-4. Configure les secrets des Edge Functions (`supabase secrets set KEY=value` ou Dashboard) :
-   ```
-   RESEND_API_KEY=re_xxx       # pour invite-parent
-   RESEND_FROM=Parenty <noreply@javachrist.fr>
-   MOLLIE_API_KEY=live_xxx     # ou test_xxx en dev
-   APP_URL=https://parenty.vercel.app
-   ```
-5. Les buckets Storage sont créés automatiquement par les migrations :
+## Configuration
 
-   | Bucket            | Visibilité | Usage                                  |
-   |-------------------|------------|----------------------------------------|
-   | `documents`       | Privé      | PDF, justificatifs, pièces partagées   |
-   | `avatars`         | Public     | Photos de profil (affichées via `<img src>`) |
-   | `chat-attachments`| Privé      | Pièces jointes envoyées dans le chat   |
+Aucune valeur secrète ne figure ici. Copier `.env.example` vers `.env.local` et renseigner les noms suivants.
 
-## Arborescence
+**Côté navigateur** (fichier `.env.local`) :
 
+| Variable | Rôle |
+| --- | --- |
+| `VITE_SUPABASE_URL` | Adresse du projet Supabase |
+| `VITE_SUPABASE_ANON_KEY` | Clé publique anon / publishable. Ne jamais y mettre la clé `service_role`. |
+| `VITE_APP_URL` | Adresse publique utilisée pour les liens d’invitation et le QR code d’installation |
+
+**Côté fonctions Supabase** (secrets du projet, pas dans le dépôt) :
+
+| Variable | Rôle |
+| --- | --- |
+| `RESEND_API_KEY` | Envoi de l’e-mail d’invitation |
+| `RESEND_FROM` | Expéditeur de cet e-mail |
+| `APP_URL` | Adresse de retour utilisée par les fonctions (invitation, paiement) |
+| `MOLLIE_API_KEY` | Clé API Mollie |
+| `MOLLIE_WEBHOOK_URL` | Facultatif. Sans elle, le webhook est celui de la fonction Supabase |
+
+`SUPABASE_URL` et `SUPABASE_SERVICE_ROLE_KEY` sont fournis par la plateforme aux fonctions. Ne pas les placer dans `.env.local`.
+
+L’adresse publique écrite dans les mentions légales, dans `.env.example` et en repli dans le code est `https://parenty.vercel.app`.
+
+### Base de données
+
+Appliquer les migrations dans l’ordre des noms de fichiers, via `npm run sb:db:push` ou le SQL Editor :
+
+1. `20260421000001_initial_schema.sql`
+2. `20260421000002_rls_policies.sql`
+3. `20260422000003_storage_documents.sql`
+4. `20260422000004_messages.sql`
+5. `20260422000005_profiles_and_avatars.sql`
+6. `20260422000006_message_attachments.sql`
+7. `20260422000007_user_deletion_cascade.sql`
+8. `20260423000001_realtime_shared_tables.sql`
+9. `20260423000002_bootstrap_family_rpc.sql`
+10. `20260423000003_mollie_billing.sql`
+11. `20260423000004_free_plan_children_limit.sql`
+12. `20260424000001_free_plan_full_limits.sql`
+13. `20260424000002_custody_schedules.sql`
+14. `20260424000003_expense_categories_extra.sql`
+15. `20260424000004_expense_share_split.sql`
+16. `20260424000005_expense_share_amount.sql`
+
+Les trois espaces de fichiers sont créés par les migrations :
+
+| Espace | Visibilité | Usage |
+| --- | --- | --- |
+| `documents` | Privé | Documents partagés et justificatifs de dépenses |
+| `avatars` | Public | Photos de profil |
+| `chat-attachments` | Privé | Pièces jointes de la messagerie |
+
+### Fonctions serveur
+
+```bash
+npm run sb:deploy
+supabase functions deploy mollie-create-subscription
+supabase functions deploy mollie-webhook --no-verify-jwt
+supabase functions deploy mollie-cancel-subscription
+supabase functions deploy mollie-payment-status
 ```
-parenty/
-├── public/                 # Assets statiques (icônes PWA, favicon…)
-├── src/
-│   ├── components/
-│   │   ├── documents/      # UploadDocumentForm
-│   │   ├── events/         # AddEventForm, EventDetailModal,
-│   │   │                   # EventHistoryTimeline
-│   │   ├── expenses/       # AddExpenseForm, RejectExpenseForm
-│   │   ├── layout/         # AppLayout, ProtectedRoute, RequireFamily,
-│   │   │                   # LegalLayout, UpdatePrompt
-│   │   ├── profile/        # PersonalInfoForm, ChangePasswordForm,
-│   │   │                   # AddChildForm, InviteCoParentForm
-│   │   └── ui/             # Modal, ImageLightbox…
-│   ├── hooks/              # useFamily, useProfile, useMessages,
-│   │                       # useExpenses, useEvents, useDocuments,
-│   │                       # useActivityFeed, useFamilyRealtime…
-│   ├── lib/                # supabase.js, image.js, pendingInvite.js
-│   ├── pages/
-│   │   ├── legal/          # MentionsLegales, Privacy, CGU, CGV
-│   │   └── …               # Un fichier par écran principal
-│   ├── stores/             # Zustand (authStore)
-│   ├── styles/             # CSS global Tailwind
-│   ├── App.jsx
-│   └── main.jsx
-├── supabase/
-│   ├── migrations/         # Schéma SQL + RLS + triggers + buckets
-│   └── functions/          # Edge Functions (invite-parent, accept-invite)
-└── docs/                   # Documentation projet
-```
+
+`npm run sb:deploy` publie `invite-parent` et `accept-invite`. Le webhook Mollie n’exige pas de jeton utilisateur : la fonction relit l’état du paiement auprès de Mollie.
+
+Guides déjà présents dans le dépôt : `docs/mollie-setup.md`, `docs/supabase-email-setup.md`, `SETUP.md`. Le fichier `docs/ARCHITECTURE.md` décrit un état antérieur (paiement présenté comme à venir, hébergeur différent de celui des mentions légales). Ce README s’aligne sur le code actuel.
 
 ## Modèle de données
 
-| Table / Bucket         | Rôle |
-|------------------------|------|
-| `families`             | Espace familial (unité de facturation et de partage) |
-| `family_members`       | Lien user ↔ family avec rôle (`owner` / `parent`) |
-| `profiles`             | Identité enrichie : prénom, nom, téléphone, avatar |
-| `children`             | Enfants (soft-delete) |
-| `events` + `event_history` | Agenda — immutable, annulations + historique complet |
-| `expenses` + `expense_history` | Dépenses — validation par l'autre parent obligatoire |
-| `documents`            | Documents (PDF/images) — soft-delete |
-| `messages`             | Chat avec pièces jointes, `read_at` pour les non-lus |
-| `invitations`          | Invitation du co-parent (token unique, expire sous 7j) |
-| `billing_events`       | Journal des événements Mollie reçus par le webhook (audit + historique de facturation) |
+| Élément | Rôle |
+| --- | --- |
+| `families` | Espace familial, statut d’abonnement, identifiants Mollie |
+| `family_members` | Lien compte ↔ famille (`owner` ou `parent`) |
+| `profiles` | Prénom, nom, téléphone, photo |
+| `children` | Enfants, avec date de retrait possible |
+| `events`, `event_history` | Agenda et journal des changements |
+| `custody_schedules` | Gardes récurrentes |
+| `expenses`, `expense_history` | Dépenses, partage, validation, journal |
+| `documents` | Fichiers partagés |
+| `messages` | Messagerie et pièces jointes |
+| `invitations` | Invitation du co-parent |
+| `billing_events` | Journal des événements de paiement reçus |
 
-## Fonctionnalités principales
+L’accès aux lignes est limité à la famille du compte connecté. Les règles sensibles (validation d’une dépense, motif de refus, plafonds du gratuit, historique des changements) sont portées par la base.
 
-### Authentification & Onboarding
-- Inscription / connexion par email + mot de passe (Supabase Auth)
-- Toggle œil sur tous les champs mot de passe
-- Parcours d'onboarding : création famille → ajout enfant → invitation co-parent
-- Page publique d'acceptation d'invitation via token signé
+## Écrans
 
-### Profil & Compte
-- Informations personnelles (prénom, nom, téléphone, email)
-- **Photo de profil** avec redimensionnement + recadrage automatique côté client (512×512 JPEG qualité 0.9, ≈ 50 Ko finals)
-- Changement de mot de passe avec vérification du mot de passe actuel
-- Modification de l'email (confirmation par lien)
-- Bandeau « Complète ton profil » sur le Dashboard tant que le prénom est vide (deep-link `?edit=personal`)
+| Adresse | Accès | Rôle |
+| --- | --- | --- |
+| `/signin`, `/signup` | Public | Connexion, inscription |
+| `/forgot-password`, `/reset-password` | Public | Mot de passe |
+| `/invite` | Public | Acceptation d’une invitation |
+| `/install` | Public | Installation sur téléphone |
+| `/mentions-legales`, `/privacy`, `/cgu`, `/cgv` | Public | Pages légales |
+| `/onboarding/child`, `/onboarding/invite` | Compte | Première famille |
+| `/` | Famille | Accueil |
+| `/calendar` | Famille | Agenda et gardes |
+| `/expenses` | Famille | Dépenses |
+| `/documents` | Famille | Documents |
+| `/chat` | Famille | Messagerie |
+| `/profile` | Famille | Profil, enfants, invitation, abonnement |
+| `/billing` | Famille | Paiements |
+| `/history` | Famille | Journal |
+| `/subscribe/success` | Famille | Retour après paiement |
 
-### Dashboard
-- Salutation contextuelle selon l'heure (Bonjour / Bon après-midi / Bonsoir)
-- Carte « Prochain événement » hero
-- Statistiques 2×2 (dépenses à valider, documents, messages, enfants)
-- **Flux d'activité unifié** : événements + dépenses + documents triés par date, avec statuts traduits
-- Lien discret **« Voir tout l'historique »** vers la page `/history` globale
-
-### Agenda
-- 5 types d'événements : garde, vacances, école, santé, autre
-- **Aucun événement supprimable** : seule l'annulation (avec motif) est possible
-- **Modification** et **annulation** des événements via un modal de détail dédié
-- Les événements annulés restent visibles dans la liste du jour (barrés, pill neutre « Annulé », lecture seule) — **pas de rouge**, ton factuel
-- **Historique contextuel** dans le modal : chronologie des créations / modifications / annulations avec auteur et diff par champ
-- Toute modification est enregistrée dans `event_history` (trigger PL/pgSQL)
-
-### Historique global (`/history`)
-- Agrégation des 3 sources : `event_history`, `expense_history`, `documents`
-- Filtres pilulaires : Tout / Événements / Dépenses / Documents
-- Regroupement par jour (« Aujourd'hui », « Hier », date formatée)
-- Chaque entrée lie vers la page d'origine ; raison d'annulation visible pour les `cancelled`
-- Parti pris éditorial : **journal factuel neutre**, pas de tableau accusatoire
-
-### Dépenses
-- Upload de justificatif (image ou PDF) dans le bucket `documents`
-- **Le payeur ne peut pas valider sa propre dépense** (contrainte CHECK au niveau DB)
-- Refus obligatoirement motivé (contrainte DB)
-- Statuts traduits et colorés : En attente / Validée / Refusée
-- Historique complet via `expense_history`
-
-### Documents
-- Upload (PDF, images) avec catégorie et enfant optionnel
-- URL signées temporaires (60 s) pour la consultation
-- Soft-delete : la ligne reste en base avec `deleted_at`
-
-### Messagerie
-- Chat en realtime (Supabase Postgres changes)
-- **Pièces jointes** : images (preview inline), PDF, bureautique (téléchargement signé)
-- Badge de messages non lus dans la bottom nav (marqués comme lus à l'ouverture du chat)
-- Aucun message supprimable ni éditable
-
-### Notifications
-- Cloche dans le header avec compteur agrégé (dépenses à valider + messages non lus)
-- Badge coloré en rouge avec nombre (9+ au-delà)
-- Lien intelligent vers la page concernée
-
-### Realtime inter-parents
-- Hook `useFamilyRealtime` monté dans `AppLayout` : souscrit aux `postgres_changes` sur `events`, `expenses`, `documents` pour le `family_id` courant
-- Invalide les caches TanStack Query (`events`, `expenses`, `documents`, `activity-feed`) à chaque insert/update/delete
-- Migration `20260423000001_realtime_shared_tables.sql` : ajoute les trois tables à la publication `supabase_realtime`
-
-### PWA & mises à jour
-- `vite-plugin-pwa` en mode `registerType: 'prompt'` + `cleanupOutdatedCaches: true`
-- Composant `UpdatePrompt` : bandeau « Une nouvelle version est disponible » dès qu'un nouveau service worker est prêt, avec bouton « Mettre à jour »
-- Évite les caches fantômes entre parents après déploiement
-
-### Abonnement Premium (Mollie)
-- **Parenty Premium** : 6,99 €/mois sans engagement, résiliable à tout moment depuis `/profile`
-- Plan gratuit limité à **1 enfant** par famille (trigger `enforce_free_plan_children_limit` appliqué côté DB, source de vérité)
-- Flow Mollie : `mollie-create-subscription` crée le customer + un first payment, Mollie redirige vers `/subscribe/success`, puis le webhook `mollie-webhook` crée la subscription récurrente et bascule `families.subscription_status` en `active`
-- Résiliation : `mollie-cancel-subscription` (owner uniquement). L'utilisateur conserve l'accès Premium jusqu'à la fin de la période déjà payée
-- Portail facturation in-app : `/billing` avec l'historique des paiements (table `billing_events`, alimentée par le webhook)
-- Les reçus PDF officiels sont envoyés par Mollie par email à chaque prélèvement
-- Détails de configuration : [`docs/mollie-setup.md`](docs/mollie-setup.md)
-
-### Emails transactionnels
-- **Authentification** (confirmation, mot de passe oublié, changement d'email) : templates HTML français configurés dans Supabase Auth → Email Templates. Détails : [`docs/supabase-email-setup.md`](docs/supabase-email-setup.md)
-- **Invitation co-parent** : email HTML branding Parenty/JavaChrist envoyé via **Resend** par l'Edge Function `invite-parent`. Si Resend échoue (clé manquante, quota), le client affiche un fallback avec le lien d'invitation à copier manuellement
-- **Reçus de paiement** : envoyés directement par Mollie, pas de logique custom
-
-### Pages légales
-Routes publiques accessibles sans authentification :
-- `/mentions-legales` — éditeur, hébergeur, contact, responsabilités
-- `/privacy` — RGPD, données collectées, durées, droits, cookies (pas de tracker externe)
-- `/cgu` — règles d'usage, parti pris anti-surveillance, modération
-- `/cgv` — conditions de l'abonnement Premium (prix, reconduction, résiliation, rétractation, Mollie)
-
-Toutes partagent `LegalLayout` (retour, titre, date de mise à jour).
-
-## Principes de conception (non négociables)
-
-- **Neutralité** : aucun champ libre émotionnel, pas de commentaires en roue libre.
-- **Factuel** : tout est daté, chiffré, attribué.
-- **Horodaté** : chaque événement / dépense / document / message porte `created_at` et un ID d'auteur.
-- **Rien n'est supprimé** : les événements ne peuvent être qu'annulés. Les documents sont en soft-delete. Les messages sont indélébiles.
-- **Sécurité par la base** : toute la logique d'accès est en RLS Postgres. Le client ne peut rien faire que la RLS ne permette.
-
-## Règles métier à retenir
-
-| Domaine      | Règle |
-|--------------|-------|
-| Agenda       | Aucun événement supprimable. Toute modif est historisée dans `event_history`. |
-| Dépenses     | Le payeur ne peut pas valider sa propre dépense (CHECK + RLS). Refus motivé obligatoire. |
-| Documents    | Pas d'édition. Soft delete via `deleted_at`. |
-| Messagerie   | Pas d'édition ni de suppression. `read_at` tracke les non-lus. |
-| Profils      | Un user voit son propre profil et ceux des membres de sa famille (RLS + fonction `is_family_member`). |
-| Familles     | Un user n'appartient qu'à une famille au MVP. |
-| Avatars      | Bucket public — photos non sensibles. Les autres buckets sont privés avec URLs signées. |
-
-## Scripts
+## Commandes
 
 ```bash
-npm run dev      # Dev server
-npm run build    # Build production
-npm run preview  # Prévisualiser le build
-npm run lint     # ESLint
+npm run dev              # serveur de développement
+npm run build            # construction de production
+npm run preview          # prévisualisation du build
+npm run lint             # ESLint
+npm run sb:login         # connexion à la CLI Supabase
+npm run sb:link          # lien avec le projet distant
+npm run sb:db:push       # application des migrations
+npm run sb:deploy        # fonctions d’invitation uniquement
+npm run sb:secrets       # liste des noms de secrets
+npm run sb:logs:invite   # journaux de invite-parent
+npm run sb:logs:accept   # journaux de accept-invite
 ```
 
-## Roadmap
+## Éditeur indiqué dans l’application
 
-### MVP
-- [x] Setup Vite + React + Tailwind + PWA
-- [x] Auth email/password
-- [x] Onboarding (enfant + invitation parent)
-- [x] Schéma SQL + RLS
-- [x] Agenda complet (création, annulation, historique)
-- [x] Dépenses complet (création, validation, refus motivé)
-- [x] Documents (upload, soft-delete, URL signées)
-- [x] Chat realtime avec pièces jointes
-- [x] Profils enrichis (prénom, nom, téléphone, avatar)
-- [x] Notifications badgées (cloche + messagerie)
-- [x] Événements annulés visibles + historique contextuel + page `/history`
-- [x] Realtime inter-parents (events / expenses / documents) + prompt de mise à jour PWA
-- [x] Pages légales (mentions, CGU, CGV, RGPD)
-- [x] Emails transactionnels (Supabase Auth FR + invitation co-parent via Resend)
-- [x] Intégration Mollie (abonnement Premium 6,99 €/mois, webhook, résiliation, gating 1 enfant en gratuit)
-- [x] Portail de facturation in-app (`/billing`)
-
-### V2
-- Export PDF certifié
-- Notifications push (web push)
-- Accès médiateur (lecture seule)
-- Multi-familles
-- Recherche dans la messagerie
-- Réactions / accusés de lecture détaillés
-
-## Éditeur
-
-Christian Grohens — Autoentrepreneur JavaChrist  
-5 rue Maurice Fonvieille, 31120 Portet-sur-Garonne  
-service@javachrist.fr
+Christian Grohens, auto-entrepreneur, 5 rue Maurice Fonvieille, 31120 Portet-sur-Garonne. Contact affiché dans les pages légales : support@javachrist.fr, +33 9 52 62 31 71. SIRET indiqué dans les CGV : 338 593 312.
